@@ -26,20 +26,26 @@ abstract contract BaseGovernance is AccessControl {
     uint256 public lastVoteTimestamp;
 
     event Voted(uint256 id, address validator, string choice, uint256 weight);
+    event ValidatorRegistered(address indexed validator, uint256 share);
+    event ValidatorShareSet(address indexed validator, uint256 share);
 
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    receive() external payable { revert("No ETH accepted"); }
+
     function registerValidator(address validator, uint256 share) external {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(GOVERNANCE_PROXY_ROLE, msg.sender), "Not authorized");
         _grantRole(VALIDATOR_ROLE, validator);
         validatorShares[validator] = share;
+        emit ValidatorRegistered(validator, share);
     }
 
     function setValidatorShare(address validator, uint256 share) external {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(GOVERNANCE_PROXY_ROLE, msg.sender), "Not authorized");
         validatorShares[validator] = share;
+        emit ValidatorShareSet(validator, share);
     }
 
     function vote(uint256 proposalId, string calldata choice) external onlyRole(VALIDATOR_ROLE) {
@@ -58,6 +64,7 @@ abstract contract BaseGovernance is AccessControl {
 
         uint256 weight = validatorShares[validator];
         require(weight > 0, "No voting weight");
+        require(hasRole(VALIDATOR_ROLE, validator), "Not a registered validator");
 
         bytes32 choiceHash = keccak256(bytes(choice));
         if (choiceHash == keccak256("for")) {
@@ -89,8 +96,10 @@ abstract contract BaseGovernance is AccessControl {
 /// @title InterestRateGovernance
 contract InterestRateGovernance is BaseGovernance {
     mapping(uint256 => uint256) public rateProposals;
+    uint256 public constant MIN_PROPOSAL_SHARES = 1e18;
     event ProposalCreated(uint256 id, uint256 proposedRate);
     event ProposalExecuted(uint256 id, uint256 newRate);
+    event ValidatorProposalCreated(uint256 indexed id, address indexed proposer, uint256 proposedRate);
 
     function createProposalByProxy(address validator, uint256 proposedRate) external onlyRole(GOVERNANCE_PROXY_ROLE) {
         require(block.timestamp >= lastVoteTimestamp + 30 days, "Voting too frequent");
@@ -101,6 +110,24 @@ contract InterestRateGovernance is BaseGovernance {
         emit ProposalCreated(proposalCounter, proposedRate);
     }
 
+    function createProposal(uint256 proposedRate) external onlyRole(VALIDATOR_ROLE) {
+        require(validatorShares[msg.sender] >= MIN_PROPOSAL_SHARES, "Insufficient share weight");
+        require(block.timestamp >= lastVoteTimestamp + 30 days, "Voting too frequent");
+        proposalCounter++;
+        proposals[proposalCounter] = Proposal({
+            id: proposalCounter,
+            votesFor: 0,
+            votesAgainst: 0,
+            votesDeclined: 0,
+            executed: false,
+            createdAt: block.timestamp
+        });
+        rateProposals[proposalCounter] = proposedRate;
+        lastVoteTimestamp = block.timestamp;
+        emit ProposalCreated(proposalCounter, proposedRate);
+        emit ValidatorProposalCreated(proposalCounter, msg.sender, proposedRate);
+    }
+
     function _executeApplicationLogic(uint256 proposalId) internal override {
         emit ProposalExecuted(proposalId, rateProposals[proposalId]);
     }
@@ -109,8 +136,10 @@ contract InterestRateGovernance is BaseGovernance {
 /// @title TransactionValidationGovernance
 contract TransactionValidationGovernance is BaseGovernance {
     mapping(uint256 => string) public txProposals;
+    uint256 public constant MIN_PROPOSAL_SHARES = 1e18;
     event ProposalCreated(uint256 id, string txHash);
     event ProposalExecuted(uint256 id, string txHash);
+    event ValidatorProposalCreated(uint256 indexed id, address indexed proposer, string txHash);
 
     function createProposalByProxy(address validator, string calldata txHash) external onlyRole(GOVERNANCE_PROXY_ROLE) {
         require(block.timestamp >= lastVoteTimestamp + 30 days, "Voting too frequent");
@@ -119,6 +148,24 @@ contract TransactionValidationGovernance is BaseGovernance {
         txProposals[proposalCounter] = txHash;
         lastVoteTimestamp = block.timestamp;
         emit ProposalCreated(proposalCounter, txHash);
+    }
+
+    function createProposal(string calldata txHash) external onlyRole(VALIDATOR_ROLE) {
+        require(validatorShares[msg.sender] >= MIN_PROPOSAL_SHARES, "Insufficient share weight");
+        require(block.timestamp >= lastVoteTimestamp + 30 days, "Voting too frequent");
+        proposalCounter++;
+        proposals[proposalCounter] = Proposal({
+            id: proposalCounter,
+            votesFor: 0,
+            votesAgainst: 0,
+            votesDeclined: 0,
+            executed: false,
+            createdAt: block.timestamp
+        });
+        txProposals[proposalCounter] = txHash;
+        lastVoteTimestamp = block.timestamp;
+        emit ProposalCreated(proposalCounter, txHash);
+        emit ValidatorProposalCreated(proposalCounter, msg.sender, txHash);
     }
 
     function _executeApplicationLogic(uint256 proposalId) internal override {
@@ -131,16 +178,23 @@ contract Compliance is AccessControl {
     bytes32 public constant COMPLIANCE_ROLE = keccak256("COMPLIANCE_ROLE");
     mapping(address => bool) public kycWhitelist;
 
+    event UserWhitelisted(address indexed user);
+    event UserRemovedFromWhitelist(address indexed user);
+
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    receive() external payable { revert("No ETH accepted"); }
+
     function whitelistUser(address user) external onlyRole(COMPLIANCE_ROLE) {
         kycWhitelist[user] = true;
+        emit UserWhitelisted(user);
     }
 
     function removeWhitelist(address user) external onlyRole(COMPLIANCE_ROLE) {
         kycWhitelist[user] = false;
+        emit UserRemovedFromWhitelist(user);
     }
 
     function isWhitelisted(address user) external view returns (bool) {
@@ -157,6 +211,7 @@ contract InterestManager is AccessControl {
     mapping(address => uint256) public lastAccrualTimestamp;
 
     event InterestRateUpdated(uint256 newRate);
+    event TimestampUpdated(address indexed user, uint256 timestamp);
 
     constructor(uint256 _interestRate) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -164,8 +219,11 @@ contract InterestManager is AccessControl {
         interestRate = _interestRate;
     }
 
+    receive() external payable { revert("No ETH accepted"); }
+
     function updateTimestamp(address user) external onlyRole(TIMESTAMP_UPDATER_ROLE) {
         lastAccrualTimestamp[user] = block.timestamp;
+        emit TimestampUpdated(user, block.timestamp);
     }
 
     function updateRate(uint256 newRate) external onlyRole(RATE_UPDATER_ROLE) {
@@ -182,6 +240,8 @@ contract CrossChainBridge is AccessControl {
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
+
+    receive() external payable { revert("No ETH accepted"); }
 
     function initiateBridge(address user, uint256 amount, string calldata targetChain) external onlyRole(BRIDGE_ROLE) {
         emit BridgeInitiated(user, amount, targetChain);
@@ -202,6 +262,7 @@ contract TokenizedDeposit is ERC20, AccessControl {
     mapping(address => uint256) public validatorShares;
     uint256 public totalShares; // Tracked dynamically for safe math
     uint256 public lastReevaluation;
+    uint256 public constant MAX_VALIDATORS = 100;
 
     // Pull-Payment Dividend System Variables
     uint256 public accumulatedFeePerShare; // Scaled by 1e18 for precision
@@ -211,6 +272,7 @@ contract TokenizedDeposit is ERC20, AccessControl {
     // Staking Variables
     mapping(address => uint256) public stakedBalances;
     mapping(address => uint256) public stakingTimestamps;
+    mapping(address => uint256) public lastAccrualTimestamp; // H3: cooldown for manual compounding
 
     struct BankInfo {
         uint256 entryTime;
@@ -222,8 +284,7 @@ contract TokenizedDeposit is ERC20, AccessControl {
     mapping(address => BankInfo) public banks;
     mapping(address => bool) public hasEntered; 
 
-    uint256 public initialTotalLiquidity = 30_000_000 ether;
-    uint256 public currentTotalLiquidity; // Updated continuously
+    uint256 public constant initialTotalLiquidity = 30_000_000 ether;
 
     event DepositIssued(address indexed user, uint256 amount);
     event DepositRedeemed(address indexed user, uint256 amount);
@@ -234,10 +295,13 @@ contract TokenizedDeposit is ERC20, AccessControl {
     event TokensStaked(address indexed user, uint256 amount);
     event TokensUnstaked(address indexed user, uint256 amount);
     event FeesClaimed(address indexed bank, uint256 amount);
+    event UserEnteredSystem(address indexed user, uint256 incentive);
+    event BankAdded(address indexed bank, uint256 contribution, bool founder);
+    event SharesReevaluated(uint256 timestamp);
 
     constructor(
-        address _compliance, address _interestManager, address _bridge,
-        address _interestGovernance, address _txGovernance
+        address payable _compliance, address payable _interestManager, address payable _bridge,
+        address payable _interestGovernance, address payable _txGovernance
     ) ERC20("TokenizedDeposit", "TDHK") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         compliance = Compliance(_compliance);
@@ -247,6 +311,8 @@ contract TokenizedDeposit is ERC20, AccessControl {
         txGovernance = TransactionValidationGovernance(_txGovernance);
     }
 
+    receive() external payable { revert("No ETH accepted"); }
+
     modifier onlyWhitelisted(address user) {
         require(compliance.isWhitelisted(user), "User not KYC whitelisted");
         _;
@@ -255,9 +321,29 @@ contract TokenizedDeposit is ERC20, AccessControl {
     function enterSystem(address user) external onlyRole(BANK_ROLE) onlyWhitelisted(user) {
         require(!hasEntered[user], "Already received incentive");
         _mint(user, 200 ether);
-        currentTotalLiquidity += 200 ether;
         interestManager.updateTimestamp(user);
         hasEntered[user] = true;
+        emit UserEnteredSystem(user, 200 ether);
+    }
+
+    function _update(address from, address to, uint256 amount) internal override {
+        if (from != address(0) && from != address(this)) {
+            require(compliance.isWhitelisted(from), "Sender not KYC whitelisted");
+        }
+        if (to != address(0) && to != address(this)) {
+            require(compliance.isWhitelisted(to), "Recipient not KYC whitelisted");
+        }
+
+        if (from != address(0) && to != address(0) && from != address(this) && to != address(this)) {
+            uint256 fee = (amount * 15) / 10000;
+            if (fee > 50 ether) fee = 50 ether;
+            super._update(from, to, amount - fee);
+            super._update(from, address(0), fee);
+            distributeFee(fee);
+            recordFee(from, fee);
+        } else {
+            super._update(from, to, amount);
+        }
     }
 
     function recordFee(address bank, uint256 feeAmount) internal {
@@ -274,6 +360,7 @@ contract TokenizedDeposit is ERC20, AccessControl {
             uint256 accumulated = (shares * accumulatedFeePerShare) / 1e18;
             uint256 pending = accumulated - rewardDebt[validator];
             if (pending > 0) claimableFees[validator] += pending;
+            rewardDebt[validator] = accumulated;
         }
     }
 
@@ -294,6 +381,7 @@ contract TokenizedDeposit is ERC20, AccessControl {
     // --- Bank Onboarding & Share Management ---
     function addBank(address bank, uint256 contribution, bool founder) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(!hasRole(BANK_ROLE, bank), "Bank already added");
+        require(validators.length < MAX_VALIDATORS, "Max validators reached");
         
         banks[bank] = BankInfo(block.timestamp, contribution, 0, founder);
         validators.push(bank);
@@ -301,15 +389,14 @@ contract TokenizedDeposit is ERC20, AccessControl {
 
         uint256 share;
         if (founder) {
-            share = (contribution * 90) / (initialTotalLiquidity - 3_000_000 ether);
+            share = (contribution * 90 * 1e18) / (initialTotalLiquidity - 3_000_000 ether);
         } else {
-            // Non-founders base their initial share on the project's *current* assets at entry
-            require(currentTotalLiquidity > 0, "No current liquidity");
-            share = (contribution * 90) / currentTotalLiquidity; 
+            require(totalSupply() > 0, "No current liquidity");
+            share = (contribution * 90 * 1e18) / totalSupply(); 
         }
 
         _updateShare(bank, share);
-        currentTotalLiquidity += contribution;
+        emit BankAdded(bank, contribution, founder);
     }
 
     function reevaluateShares() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -327,18 +414,18 @@ contract TokenizedDeposit is ERC20, AccessControl {
 
             uint256 newShare = validatorShares[bank];
             if (block.timestamp < info.entryTime + 365 days) {
-                // Keep initial logic for year 1
                  if (info.isFounder) {
-                    newShare = (info.initialContribution * 90) / (initialTotalLiquidity - 3_000_000 ether);
+                    newShare = (info.initialContribution * 90 * 1e18) / (initialTotalLiquidity - 3_000_000 ether);
                 } else {
-                    newShare = (info.initialContribution * 90) / currentTotalLiquidity;
+                    newShare = (info.initialContribution * 90 * 1e18) / totalSupply();
                 }
             } else if (totalGrossFees > 0) {
-                newShare = (banks[bank].grossFeesGenerated * 90) / totalGrossFees;
+                newShare = (banks[bank].grossFeesGenerated * 90 * 1e18) / totalGrossFees;
             }
             
             _updateShare(bank, newShare);
         }
+        emit SharesReevaluated(block.timestamp);
     }
 
     function _updateShare(address bank, uint256 newShare) internal {
@@ -358,52 +445,55 @@ contract TokenizedDeposit is ERC20, AccessControl {
     // --- Core Operations ---
     function issueDeposit(address user, uint256 amount) external onlyRole(BANK_ROLE) onlyWhitelisted(user) {
         _mint(user, amount);
-        currentTotalLiquidity += amount;
         interestManager.updateTimestamp(user);
         emit DepositIssued(user, amount);
     }
 
     function redeemDeposit(address user, uint256 amount) external onlyRole(BANK_ROLE) {
         _burn(user, amount);
-        currentTotalLiquidity -= amount;
         emit DepositRedeemed(user, amount);
     }
 
-    // --- High-Precision Margin Interest Calculation ---
-    function accrueInterest(address user) public onlyWhitelisted(user) {
-        require(msg.sender == user || hasRole(BANK_ROLE, msg.sender), "Not authorized");
-        
+    // --- High-Precision Interest Calculation ---
+    function accrueInterest(address user) public onlyRole(BANK_ROLE) onlyWhitelisted(user) {
         uint256 principal = balanceOf(user);
         uint256 timeElapsed = block.timestamp - interestManager.lastAccrualTimestamp(user);
         if (timeElapsed == 0 || principal == 0) return;
 
+        require(block.timestamp >= lastAccrualTimestamp[user] + 1 days, "Accrual cooldown active");
+
         uint256 baseRate = interestManager.interestRate();
         uint256 feeMarginBps; 
 
-        if (principal < 100_000 ether) feeMarginBps = 50; // 0.5%
-        else if (principal < 1_000_000 ether) feeMarginBps = 30; // 0.3%
-        else feeMarginBps = 10; // 0.1%
+        if (principal < 100_000 ether) feeMarginBps = 50;
+        else if (principal < 1_000_000 ether) feeMarginBps = 30;
+        else feeMarginBps = 10;
 
         require(baseRate >= feeMarginBps, "Base rate too low to cover platform fee");
-        uint256 netRate = baseRate - feeMarginBps;
 
-        // Formula mathematically safeguards precision by keeping the scale in 1e18
-        uint256 netInterest = (principal * netRate * timeElapsed) / (365 days * 10000);
-        uint256 protocolFee = (principal * feeMarginBps * timeElapsed) / (365 days * 10000);
+        uint256 netRateBps = baseRate - feeMarginBps;
+        uint256 netRatePerSecond = (netRateBps * 1e18) / (365 days * 10000);
+        uint256 feeRatePerSecond = (feeMarginBps * 1e18) / (365 days * 10000);
+
+        uint256 netInterest = (principal * netRatePerSecond * timeElapsed) / 1e18;
+        uint256 protocolFee = (principal * feeRatePerSecond * timeElapsed) / 1e18;
 
         _mint(user, netInterest);
-        currentTotalLiquidity += netInterest;
         distributeFee(protocolFee);
         recordFee(msg.sender, protocolFee);
         
         interestManager.updateTimestamp(user);
+        lastAccrualTimestamp[user] = block.timestamp;
         emit InterestAccrued(user, netInterest, protocolFee);
     }
 
     // --- 1-Month Staking Lock-Up ---
     function stakeDeposit(uint256 amount) external onlyWhitelisted(msg.sender) {
         require(amount > 0, "Amount must be > 0");
-        _transfer(msg.sender, address(this), amount); // Removes from active circulation
+        if (stakedBalances[msg.sender] > 0) {
+            require(block.timestamp >= stakingTimestamps[msg.sender] + 30 days, "Existing stake locked");
+        }
+        _transfer(msg.sender, address(this), amount);
         
         stakedBalances[msg.sender] += amount;
         stakingTimestamps[msg.sender] = block.timestamp;
@@ -421,19 +511,9 @@ contract TokenizedDeposit is ERC20, AccessControl {
         emit TokensUnstaked(msg.sender, amount);
     }
 
-    // --- Transfers and Swaps ---
-    function transferTokens(address to, uint256 amount) external onlyWhitelisted(msg.sender) {
-        require(compliance.isWhitelisted(to), "Recipient not KYC whitelisted");
-        uint256 fee = (amount * 15) / 10000;
-        if (fee > 50 ether) fee = 50 ether;
-
-        _transfer(msg.sender, to, amount - fee);
-        _burn(msg.sender, fee); // Burn fee from circulation to route to dividend pool
-        
-        distributeFee(fee);
-        recordFee(msg.sender, fee);
-    }
-
+    // --- Swap with Tiered Fee Schedule ---
+    // Standard ERC20 transfer() already enforces KYC + flat 0.15% fee via _update().
+    // swapTokens provides an alternative with a tiered fee schedule and higher cap.
     function swapTokens(address recipient, uint256 amount) external onlyWhitelisted(msg.sender) onlyWhitelisted(recipient) {
         uint256 fee;
         if (amount < 10000 ether) fee = (amount * 25) / 10000;

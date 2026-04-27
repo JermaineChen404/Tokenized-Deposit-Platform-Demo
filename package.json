@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "sync:abi": "node extract_abi.js",
+    "bootstrap:local": "hardhat run scripts/bootstrap-local.js --network localhost",
+    "setup:local": "npm run deploy:local && npm run sync:abi && npm run bootstrap:local",
+    "dev": "node scripts/start-dev.js"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
+    "@openzeppelin/contracts": "^5.6.1",
+    "hardhat": "^2.28.6"
+  },
+  "type": "module"
+}

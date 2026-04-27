@@ -1,4 +1,8 @@
 {
+  "name": "tokenized-deposit-platform",
+  "version": "0.1.0",
+  "description": "Regulated tokenized deposits with on-chain staking, compliant transfers, and governance-linked admin actions",
+  "private": true,
   "scripts": {
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
     "sync:abi": "node extract_abi.js",

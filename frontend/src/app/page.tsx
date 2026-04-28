@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { type Address, formatEther, isAddress, parseEther, zeroAddress } from "viem";
 import { useAccount, useChainId, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
@@ -58,6 +58,9 @@ export default function Home() {
   const [accrueTarget, setAccrueTarget] = useState("");
   const [whitelistTarget, setWhitelistTarget] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const accountAddress = (address ?? zeroAddress) as Address;
   const canRead = isConnected && Boolean(address);
@@ -227,7 +230,7 @@ export default function Home() {
         writeContractAsync({
           address: tokenizedDepositAddress,
           abi: tokenizedDepositABI,
-          functionName: "transferTokens",
+          functionName: "swapTokens",
           args: [recipient as Address, amount],
         }),
     });
@@ -337,7 +340,11 @@ export default function Home() {
                 Token Balance
               </CardDescription>
               <CardTitle className="text-2xl">
-                {isTokenBalanceLoading && canRead ? "Loading..." : `${formatTokenAmount(tokenBalance as bigint)} TDHK`}
+                {!mounted
+                  ? "0.0000 TDHK"
+                  : isTokenBalanceLoading && canRead
+                    ? "Loading..."
+                    : `${formatTokenAmount(tokenBalance as bigint)} TDHK`}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -349,7 +356,11 @@ export default function Home() {
                 Staked Balance
               </CardDescription>
               <CardTitle className="text-2xl">
-                {isStakedBalanceLoading && canRead ? "Loading..." : `${formatTokenAmount(stakedBalance as bigint)} TDHK`}
+                {!mounted
+                  ? "0.0000 TDHK"
+                  : isStakedBalanceLoading && canRead
+                    ? "Loading..."
+                    : `${formatTokenAmount(stakedBalance as bigint)} TDHK`}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -360,7 +371,7 @@ export default function Home() {
                 <Activity className="h-4 w-4" />
                 Session Status
               </CardDescription>
-              <CardTitle className="text-2xl">{isConnected ? "Connected" : "Disconnected"}</CardTitle>
+              <CardTitle className="text-2xl">{!mounted ? "Disconnected" : isConnected ? "Connected" : "Disconnected"}</CardTitle>
             </CardHeader>
           </Card>
         </section>
@@ -381,11 +392,11 @@ export default function Home() {
               <TableBody>
                 <TableRow>
                   <TableCell>Wallet</TableCell>
-                  <TableCell className="font-mono text-xs sm:text-sm">{walletLabel}</TableCell>
+                  <TableCell className="font-mono text-xs sm:text-sm">{!mounted ? "Not connected" : walletLabel}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>Network</TableCell>
-                  <TableCell>{onSupportedChain ? "Hardhat Localhost (31337)" : `Chain ID ${chainId ?? "Unknown"}`}</TableCell>
+                  <TableCell>{!mounted ? "Unknown" : onSupportedChain ? "Hardhat Localhost (31337)" : `Chain ID ${chainId ?? "Unknown"}`}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell>TokenizedDeposit</TableCell>
@@ -454,7 +465,7 @@ export default function Home() {
             <CardHeader>
               <CardTitle>Transfer Interface</CardTitle>
               <CardDescription>
-                Execute compliant peer transfers via <span className="font-mono">transferTokens()</span> with protocol fee logic.
+                Execute compliant peer transfers via <span className="font-mono">swapTokens()</span> with protocol fee logic.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">

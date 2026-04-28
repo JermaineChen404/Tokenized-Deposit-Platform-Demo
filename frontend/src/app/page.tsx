@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { type Address, formatEther, isAddress, parseEther, zeroAddress } from "viem";
 import { useAccount, useChainId, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
@@ -58,9 +58,11 @@ export default function Home() {
   const [accrueTarget, setAccrueTarget] = useState("");
   const [whitelistTarget, setWhitelistTarget] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   const accountAddress = (address ?? zeroAddress) as Address;
   const canRead = isConnected && Boolean(address);
@@ -221,6 +223,11 @@ export default function Home() {
 
     const amount = parseTokenInput(transferAmount, "Transfer amount");
     if (amount === null) return;
+
+    if (amount > (tokenBalance as bigint ?? 0n)) {
+      toast.error("Transfer amount exceeds your token balance.");
+      return;
+    }
 
     await executeTransaction({
       actionId: "transfer",

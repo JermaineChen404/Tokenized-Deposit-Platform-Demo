@@ -1,5 +1,12 @@
 import hardhat from "hardhat";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 const { ethers } = hardhat;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, "..");
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -46,6 +53,7 @@ async function main() {
   );
   await token.waitForDeployment();
   const tokenAddress = await token.getAddress();
+  const complianceAddress = await compliance.getAddress();
   console.log("TokenizedDeposit deployed to:", tokenAddress);
 
   // Setup initial roles and permissions (Admin doing setup)
@@ -56,7 +64,25 @@ async function main() {
   await interestGovernance.grantRole(GOV_PROXY_ROLE, tokenAddress);
   await txGovernance.grantRole(GOV_PROXY_ROLE, tokenAddress);
 
+  const deploymentData = {
+    tokenizedDeposit: tokenAddress,
+    compliance: complianceAddress,
+    interestManager: await interestManager.getAddress(),
+    bridge: await bridge.getAddress(),
+    interestGovernance: await interestGovernance.getAddress(),
+    txGovernance: await txGovernance.getAddress(),
+    chain: "localhost",
+    updatedAt: new Date().toISOString(),
+  };
+
+  fs.writeFileSync(
+    path.join(rootDir, "deployments.local.json"),
+    `${JSON.stringify(deploymentData, null, 2)}\n`,
+    "utf8"
+  );
+
   console.log("Initial roles configured successfully.");
+  console.log("Deployment metadata written to deployments.local.json");
   console.log("---");
   console.log("Deployment is complete! Copy the addresses above for your frontend.");
 }

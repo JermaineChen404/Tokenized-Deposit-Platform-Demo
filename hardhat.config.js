@@ -11,6 +11,17 @@ export default {
       },
     },
   },
+  networks: {
+    hardhat: {
+      blockGasLimit: 30_000_000,
+      gas: "auto",
+      gasPrice: "auto",
+    },
+    localhost: {
+      gas: "auto",
+      gasPrice: "auto",
+    },
+  },
   paths: {
     sources: "contracts",
     tests: "test",

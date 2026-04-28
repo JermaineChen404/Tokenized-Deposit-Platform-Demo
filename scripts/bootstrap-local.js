@@ -10,6 +10,16 @@ const DEFAULTS = {
   compliance: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
 };
 
+function readDeploymentJson(rootDir) {
+  const deploymentPath = path.join(rootDir, "deployments.local.json");
+  if (!fs.existsSync(deploymentPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 function readAddressFromTs(filePath, constantName, fallback) {
   if (!fs.existsSync(filePath)) return fallback;
 
@@ -27,18 +37,15 @@ async function main() {
 
   const abiConstantsPath = path.join(rootDir, "frontend", "src", "constants", "abi.ts");
   const adminConstantsPath = path.join(rootDir, "frontend", "src", "constants", "admin.ts");
+  const deployment = readDeploymentJson(rootDir);
 
-  const tokenizedDepositAddress = readAddressFromTs(
-    abiConstantsPath,
-    "TOKENIZED_DEPOSIT_ADDRESS",
-    DEFAULTS.tokenizedDeposit
-  );
+  const tokenizedDepositAddress =
+    deployment?.tokenizedDeposit ??
+    readAddressFromTs(abiConstantsPath, "TOKENIZED_DEPOSIT_ADDRESS", DEFAULTS.tokenizedDeposit);
 
-  const complianceAddress = readAddressFromTs(
-    adminConstantsPath,
-    "COMPLIANCE_ADDRESS",
-    DEFAULTS.compliance
-  );
+  const complianceAddress =
+    deployment?.compliance ??
+    readAddressFromTs(adminConstantsPath, "COMPLIANCE_ADDRESS", DEFAULTS.compliance);
 
   const [deployer, user2] = await ethers.getSigners();
 

@@ -163,6 +163,11 @@ export default function Home() {
     const amount = parseTokenInput(stakeAmount, "Stake amount");
     if (amount === null) return;
 
+    if (amount > (tokenBalance as bigint ?? 0n)) {
+      toast.error("Stake amount exceeds your token balance.");
+      return;
+    }
+
     await executeTransaction({
       actionId: "stake",
       loadingMessage: "Submitting stake transaction...",
@@ -182,6 +187,11 @@ export default function Home() {
   const handleUnstake = async () => {
     const amount = parseTokenInput(unstakeAmount, "Unstake amount");
     if (amount === null) return;
+
+    if (amount > (stakedBalance as bigint ?? 0n)) {
+      toast.error("Unstake amount exceeds your staked balance.");
+      return;
+    }
 
     await executeTransaction({
       actionId: "unstake",
@@ -327,7 +337,7 @@ export default function Home() {
                 Token Balance
               </CardDescription>
               <CardTitle className="text-2xl">
-                {isTokenBalanceLoading ? "Loading..." : `${formatTokenAmount(tokenBalance as bigint)} TDHK`}
+                {isTokenBalanceLoading && canRead ? "Loading..." : `${formatTokenAmount(tokenBalance as bigint)} TDHK`}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -339,7 +349,7 @@ export default function Home() {
                 Staked Balance
               </CardDescription>
               <CardTitle className="text-2xl">
-                {isStakedBalanceLoading ? "Loading..." : `${formatTokenAmount(stakedBalance as bigint)} TDHK`}
+                {isStakedBalanceLoading && canRead ? "Loading..." : `${formatTokenAmount(stakedBalance as bigint)} TDHK`}
               </CardTitle>
             </CardHeader>
           </Card>

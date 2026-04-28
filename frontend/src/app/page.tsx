@@ -313,7 +313,7 @@ export default function Home() {
           </div>
         </section>
 
-        {isConnected && !onSupportedChain ? (
+        {mounted && isConnected && !onSupportedChain ? (
           <Card className="border-amber-300/60 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-900/20">
             <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-3">
@@ -433,7 +433,7 @@ export default function Home() {
                 className="w-full"
                 onClick={handleStake}
                 loading={activeAction === "stake"}
-                disabled={!canWrite}
+                disabled={!mounted || !canWrite}
               >
                 Stake Deposit
               </Button>
@@ -454,7 +454,7 @@ export default function Home() {
                 variant="outline"
                 onClick={handleUnstake}
                 loading={activeAction === "unstake"}
-                disabled={!canWrite}
+                disabled={!mounted || !canWrite}
               >
                 Withdraw Stake
               </Button>
@@ -494,7 +494,7 @@ export default function Home() {
                 className="w-full"
                 onClick={handleTransfer}
                 loading={activeAction === "transfer"}
-                disabled={!canWrite}
+                disabled={!mounted || !canWrite}
               >
                 <ArrowLeftRight className="h-4 w-4" />
                 Transfer Tokens
@@ -527,7 +527,7 @@ export default function Home() {
                 variant="secondary"
                 onClick={handleAccrueInterest}
                 loading={activeAction === "accrue"}
-                disabled={!canWrite}
+                disabled={!mounted || !canWrite}
               >
                 Trigger accrueInterest()
               </Button>
@@ -546,7 +546,7 @@ export default function Home() {
                 variant="outline"
                 onClick={handleWhitelist}
                 loading={activeAction === "whitelist"}
-                disabled={!canWrite}
+                disabled={!mounted || !canWrite}
               >
                 Trigger whitelistUser()
               </Button>

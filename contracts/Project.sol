@@ -107,7 +107,7 @@ contract InterestRateGovernance is BaseGovernance {
         proposals[proposalCounter] = Proposal(proposalCounter, 0, 0, 0, false, block.timestamp);
         rateProposals[proposalCounter] = proposedRate;
         lastVoteTimestamp = block.timestamp;
-        emit ProposalCreated(proposalCounter, proposedRate);
+        emit ValidatorProposalCreated(proposalCounter, validator, proposedRate);
     }
 
     function createProposal(uint256 proposedRate) external onlyRole(VALIDATOR_ROLE) {
@@ -147,7 +147,7 @@ contract TransactionValidationGovernance is BaseGovernance {
         proposals[proposalCounter] = Proposal(proposalCounter, 0, 0, 0, false, block.timestamp);
         txProposals[proposalCounter] = txHash;
         lastVoteTimestamp = block.timestamp;
-        emit ProposalCreated(proposalCounter, txHash);
+        emit ValidatorProposalCreated(proposalCounter, validator, txHash);
     }
 
     function createProposal(string calldata txHash) external onlyRole(VALIDATOR_ROLE) {

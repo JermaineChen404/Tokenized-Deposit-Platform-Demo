@@ -24,22 +24,28 @@ function waitForHttp(url, timeoutMs = 120_000) {
   });
 }
 
-function openBrowser(url) {
-  const cmd =
+async function openBrowser(url) {
+  const cmdArgs =
     isWin
-      ? `start ${url}`
+      ? ["start", url]
       : platform() === "darwin"
-        ? `open ${url}`
-        : `xdg-open ${url}`;
-  execSync(cmd, { stdio: "ignore" });
+        ? ["open", url]
+        : ["xdg-open", url];
+  await runOrThrow(cmdArgs[0], cmdArgs.slice(1), { stdio: "ignore", shell: isWin ? "cmd.exe" : true });
 }
 
 function runOrThrow(command, args, options = {}) {
-  const commandLine = `${command} ${args.join(" ")}`;
-  execSync(commandLine, {
-    stdio: "inherit",
-    shell: isWin ? "cmd.exe" : true,
-    ...options,
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: "inherit",
+      shell: isWin ? "cmd.exe" : true,
+      ...options,
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} ${args.join(" ")} exited with code ${code}`));
+    });
   });
 }
 
@@ -100,9 +106,9 @@ async function main() {
   await waitForHttp("http://127.0.0.1:8545/");
 
   console.log(">>> Running setup:local (deploy + ABI sync + bootstrap)...");
-  runOrThrow(npxCmd, ["hardhat", "run", "scripts/deploy.js", "--network", "localhost"]);
-  runOrThrow("node", ["extract_abi.js"]);
-  runOrThrow(npxCmd, ["hardhat", "run", "scripts/bootstrap-local.js", "--network", "localhost"]);
+  await runOrThrow(npxCmd, ["hardhat", "run", "scripts/deploy.js", "--network", "localhost"]);
+  await runOrThrow("node", ["extract_abi.js"]);
+  await runOrThrow(npxCmd, ["hardhat", "run", "scripts/bootstrap-local.js", "--network", "localhost"]);
 
   console.log(">>> Starting frontend dev server...");
   const frontend = spawnLongRunning(npmCmd, ["run", "dev"], { cwd: "frontend" });
@@ -111,7 +117,7 @@ async function main() {
   await waitForHttp("http://localhost:3000");
 
   console.log(">>> Opening http://localhost:3000...");
-  openBrowser("http://localhost:3000");
+  await openBrowser("http://localhost:3000");
 
   console.log("\n>>> All systems ready. Press Ctrl+C to stop everything.");
   console.log("    Hardhat RPC:  http://127.0.0.1:8545/");

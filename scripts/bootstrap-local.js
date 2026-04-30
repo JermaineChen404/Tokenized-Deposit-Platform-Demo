@@ -47,68 +47,62 @@ async function main() {
     deployment?.compliance ??
     readAddressFromTs(adminConstantsPath, "COMPLIANCE_ADDRESS", DEFAULTS.compliance);
 
-  const [deployer, user2] = await ethers.getSigners();
+  const [admin] = await ethers.getSigners();
 
-  console.log("Bootstrapping local state with deployer:", deployer.address);
+  console.log("=== Permissions Bootstrap ===");
+  console.log("Admin:", admin.address);
   console.log("TokenizedDeposit:", tokenizedDepositAddress);
-  console.log("Compliance:", complianceAddress);
-  console.log("Secondary test user:", user2.address);
+  console.log("Compliance:      ", complianceAddress);
 
   const token = await ethers.getContractAt("TokenizedDeposit", tokenizedDepositAddress);
   const compliance = await ethers.getContractAt("Compliance", complianceAddress);
 
+  // --- 1. Grant COMPLIANCE_ROLE to admin (needed to whitelist users) ---
   const complianceRole = await compliance.COMPLIANCE_ROLE();
-  const deployerHasComplianceRole = await compliance.hasRole(complianceRole, deployer.address);
-  if (!deployerHasComplianceRole) {
-    const tx = await compliance.grantRole(complianceRole, deployer.address);
+  const adminHasCompliance = await compliance.hasRole(complianceRole, admin.address);
+  if (!adminHasCompliance) {
+    const tx = await compliance.grantRole(complianceRole, admin.address);
     await tx.wait();
-    console.log("Granted COMPLIANCE_ROLE to deployer.");
+    console.log("✅ Granted COMPLIANCE_ROLE to admin.");
   } else {
-    console.log("Deployer already has COMPLIANCE_ROLE.");
+    console.log("⏭️  Admin already has COMPLIANCE_ROLE.");
   }
 
-  const usersToWhitelist = [deployer.address, user2.address];
-  for (const user of usersToWhitelist) {
-    const isWhitelisted = await compliance.isWhitelisted(user);
-    if (!isWhitelisted) {
-      const tx = await compliance.whitelistUser(user);
-      await tx.wait();
-      console.log("Whitelisted user:", user);
-    } else {
-      console.log("Already whitelisted:", user);
-    }
+  // --- 2. Whitelist admin (needed to interact with the platform) ---
+  const isWhitelisted = await compliance.isWhitelisted(admin.address);
+  if (!isWhitelisted) {
+    const tx = await compliance.whitelistUser(admin.address);
+    await tx.wait();
+    console.log("✅ Whitelisted admin.");
+  } else {
+    console.log("⏭️  Admin already whitelisted.");
   }
 
+  // --- 3. Grant BANK_ROLE to admin (needed to issue deposits) ---
   const bankRole = await token.BANK_ROLE();
-  const deployerIsBank = await token.hasRole(bankRole, deployer.address);
-  if (!deployerIsBank) {
-    const tx = await token.addBank(deployer.address, ethers.parseEther("3000000"), true);
+  const adminHasBank = await token.hasRole(bankRole, admin.address);
+  if (!adminHasBank) {
+    const tx = await token.grantRole(bankRole, admin.address);
     await tx.wait();
-    console.log("Added deployer as founder bank.");
+    console.log("✅ Granted BANK_ROLE to admin.");
   } else {
-    console.log("Deployer already has BANK_ROLE.");
-  }
-
-  const deployerBalance = await token.balanceOf(deployer.address);
-  if (deployerBalance === 0n) {
-    const tx = await token.issueDeposit(deployer.address, ethers.parseEther("5000"));
-    await tx.wait();
-    console.log("Issued 5000 TDHK to deployer.");
-  } else {
-    console.log("Deployer already has TDHK balance:", ethers.formatEther(deployerBalance));
-  }
-
-  const user2Balance = await token.balanceOf(user2.address);
-  if (user2Balance === 0n) {
-    const tx = await token.issueDeposit(user2.address, ethers.parseEther("1000"));
-    await tx.wait();
-    console.log("Issued 1000 TDHK to secondary user.");
-  } else {
-    console.log("Secondary user already has TDHK balance:", ethers.formatEther(user2Balance));
+    console.log("⏭️  Admin already has BANK_ROLE.");
   }
 
   console.log("---");
-  console.log("Local bootstrap complete.");
+  console.log("=== Bootstrap Complete ===");
+  console.log("");
+  console.log("The platform is ready. No banks, users, or deposits are pre-configured.");
+  console.log("Use the Admin account to set everything up through the frontend:");
+  console.log("");
+  console.log("  Admin:", admin.address);
+  console.log("  PK:    0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+  console.log("");
+  console.log("Suggested workflow:");
+  console.log("  1. Admin adds banks      → Administration tab → Add Bank");
+  console.log("  2. Admin whitelists users → Compliance tab → Whitelist User");
+  console.log("  3. Admin issues deposits  → Banking tab → Issue Deposit");
+  console.log("  4. Users stake & transfer → Dashboard tab");
 }
 
 main().catch((error) => {

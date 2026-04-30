@@ -1,29 +1,27 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import {
-  Activity,
-  ArrowLeftRight,
-  CircleAlert,
-  Landmark,
-  PiggyBank,
-  ShieldCheck,
-  Wallet,
-} from "lucide-react";
+import { Activity, CircleAlert, Landmark, PiggyBank, Wallet } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { type Address, formatEther, isAddress, parseEther, zeroAddress } from "viem";
-import { useAccount, useChainId, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
-import { waitForTransactionReceipt } from "wagmi/actions";
+import { type Address, zeroAddress } from "viem";
+import { formatEther } from "viem";
+import { useAccount, useChainId, useReadContract, useSwitchChain } from "wagmi";
 import { hardhat } from "wagmi/chains";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { complianceABI, COMPLIANCE_ADDRESS } from "@/constants/admin";
+import { Tabs, type TabId } from "@/components/tabs";
+import { DashboardSection } from "@/components/sections/dashboard-section";
+import { BankingSection } from "@/components/sections/banking-section";
+import { ComplianceSection } from "@/components/sections/compliance-section";
+import { AdminSection } from "@/components/sections/admin-section";
+import { GovernanceSection } from "@/components/sections/governance-section";
+import { ValidatorsSection } from "@/components/sections/validators-section";
+import { BridgeSection } from "@/components/sections/bridge-section";
 import { tokenizedDepositABI, TOKENIZED_DEPOSIT_ADDRESS } from "@/constants/abi";
-import { wagmiConfig } from "@/providers/web3-provider";
+import { complianceABI, COMPLIANCE_ADDRESS } from "@/constants/admin";
+import { INTEREST_MANAGER_ADDRESS, interestManagerABI } from "@/constants/governance";
+import { DEFAULT_ADMIN_ROLE } from "@/constants/roles";
 
 function formatTokenAmount(value: bigint | undefined) {
   if (value === undefined) return "0.0000";
@@ -36,49 +34,36 @@ function formatTokenAmount(value: bigint | undefined) {
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) {
     const message = error.message.split("\n")[0];
-    if (/user rejected|user denied/i.test(message)) {
-      return "Transaction rejected in wallet.";
-    }
+    if (/user rejected|user denied/i.test(message)) return "Transaction rejected in wallet.";
     return message;
   }
   return "Transaction failed.";
 }
 
 export default function Home() {
-  const tokenizedDepositAddress = TOKENIZED_DEPOSIT_ADDRESS as Address;
+  const tokenAddress = TOKENIZED_DEPOSIT_ADDRESS as Address;
+  const complianceAddress = COMPLIANCE_ADDRESS;
+  const interestManagerAddress = INTEREST_MANAGER_ADDRESS;
+
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
-  const { writeContractAsync } = useWriteContract();
 
-  const [stakeAmount, setStakeAmount] = useState("");
-  const [unstakeAmount, setUnstakeAmount] = useState("");
-  const [transferRecipient, setTransferRecipient] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
-  const [accrueTarget, setAccrueTarget] = useState("");
-  const [whitelistTarget, setWhitelistTarget] = useState("");
-  const [activeAction, setActiveAction] = useState<string | null>(null);
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
   const accountAddress = (address ?? zeroAddress) as Address;
   const canRead = isConnected && Boolean(address);
   const onSupportedChain = chainId === hardhat.id;
   const canWrite = canRead && onSupportedChain;
+
+  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
 
   const {
     data: tokenBalance,
     isLoading: isTokenBalanceLoading,
     refetch: refetchTokenBalance,
   } = useReadContract({
-    address: tokenizedDepositAddress,
-    abi: tokenizedDepositABI,
-    functionName: "balanceOf",
-    args: [accountAddress],
-    query: { enabled: canRead },
+    address: tokenAddress, abi: tokenizedDepositABI, functionName: "balanceOf",
+    args: [accountAddress], query: { enabled: canRead },
   });
 
   const {
@@ -86,74 +71,36 @@ export default function Home() {
     isLoading: isStakedBalanceLoading,
     refetch: refetchStakedBalance,
   } = useReadContract({
-    address: tokenizedDepositAddress,
-    abi: tokenizedDepositABI,
-    functionName: "stakedBalances",
-    args: [accountAddress],
-    query: { enabled: canRead },
+    address: tokenAddress, abi: tokenizedDepositABI, functionName: "stakedBalances",
+    args: [accountAddress], query: { enabled: canRead },
   });
+
+  const { data: isWhitelisted } = useReadContract({
+    address: complianceAddress, abi: complianceABI, functionName: "isWhitelisted",
+    args: [accountAddress], query: { enabled: canRead },
+  });
+
+  const { data: isAdminTD } = useReadContract({
+    address: tokenAddress, abi: tokenizedDepositABI, functionName: "hasRole",
+    args: [DEFAULT_ADMIN_ROLE, accountAddress], query: { enabled: canRead },
+  });
+
+  const { data: isAdminCompliance } = useReadContract({
+    address: complianceAddress, abi: complianceABI, functionName: "hasRole",
+    args: [DEFAULT_ADMIN_ROLE, accountAddress], query: { enabled: canRead },
+  });
+
+  const { data: isAdminInterestManager } = useReadContract({
+    address: interestManagerAddress, abi: interestManagerABI, functionName: "hasRole",
+    args: [DEFAULT_ADMIN_ROLE, accountAddress], query: { enabled: canRead },
+  });
+
+  const isAdmin = (isAdminTD === true || isAdminCompliance === true || isAdminInterestManager === true);
 
   const walletLabel = useMemo(() => {
     if (!address) return "Not connected";
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   }, [address]);
-
-  const parseTokenInput = (rawValue: string, fieldName: string) => {
-    const trimmed = rawValue.trim();
-    if (!trimmed) {
-      toast.error(`${fieldName} is required.`);
-      return null;
-    }
-
-    try {
-      const amount = parseEther(trimmed);
-      if (amount <= 0n) {
-        toast.error(`${fieldName} must be greater than 0.`);
-        return null;
-      }
-      return amount;
-    } catch {
-      toast.error(`Invalid ${fieldName.toLowerCase()} format.`);
-      return null;
-    }
-  };
-
-  const executeTransaction = async ({
-    actionId,
-    loadingMessage,
-    successMessage,
-    write,
-  }: {
-    actionId: string;
-    loadingMessage: string;
-    successMessage: string;
-    write: () => Promise<`0x${string}`>;
-  }) => {
-    if (!canWrite) {
-      toast.error("Connect wallet and switch to Hardhat Localhost (31337).");
-      return;
-    }
-
-    setActiveAction(actionId);
-
-    try {
-      const transactionPromise = (async () => {
-        const hash = await write();
-        await waitForTransactionReceipt(wagmiConfig, { hash });
-        return hash;
-      })();
-
-      await toast.promise(transactionPromise, {
-        loading: loadingMessage,
-        success: successMessage,
-        error: (error) => getErrorMessage(error),
-      });
-
-      await Promise.all([refetchTokenBalance(), refetchStakedBalance()]);
-    } finally {
-      setActiveAction(null);
-    }
-  };
 
   const handleSwitchNetwork = async () => {
     try {
@@ -164,131 +111,6 @@ export default function Home() {
     }
   };
 
-  const handleStake = async () => {
-    const amount = parseTokenInput(stakeAmount, "Stake amount");
-    if (amount === null) return;
-
-    if (amount > (tokenBalance as bigint ?? 0n)) {
-      toast.error("Stake amount exceeds your token balance.");
-      return;
-    }
-
-    await executeTransaction({
-      actionId: "stake",
-      loadingMessage: "Submitting stake transaction...",
-      successMessage: "Stake confirmed.",
-      write: () =>
-        writeContractAsync({
-          address: tokenizedDepositAddress,
-          abi: tokenizedDepositABI,
-          functionName: "stakeDeposit",
-          args: [amount],
-        }),
-    });
-
-    setStakeAmount("");
-  };
-
-  const handleUnstake = async () => {
-    const amount = parseTokenInput(unstakeAmount, "Unstake amount");
-    if (amount === null) return;
-
-    if (amount > (stakedBalance as bigint ?? 0n)) {
-      toast.error("Unstake amount exceeds your staked balance.");
-      return;
-    }
-
-    await executeTransaction({
-      actionId: "unstake",
-      loadingMessage: "Submitting unstake transaction...",
-      successMessage: "Unstake confirmed.",
-      write: () =>
-        writeContractAsync({
-          address: tokenizedDepositAddress,
-          abi: tokenizedDepositABI,
-          functionName: "withdrawStake",
-          args: [amount],
-        }),
-    });
-
-    setUnstakeAmount("");
-  };
-
-  const handleTransfer = async () => {
-    const recipient = transferRecipient.trim();
-    if (!isAddress(recipient)) {
-      toast.error("Recipient must be a valid EVM address.");
-      return;
-    }
-
-    const amount = parseTokenInput(transferAmount, "Transfer amount");
-    if (amount === null) return;
-
-    if (amount > (tokenBalance as bigint ?? 0n)) {
-      toast.error("Transfer amount exceeds your token balance.");
-      return;
-    }
-
-    await executeTransaction({
-      actionId: "transfer",
-      loadingMessage: "Submitting transfer transaction...",
-      successMessage: "Transfer confirmed.",
-      write: () =>
-        writeContractAsync({
-          address: tokenizedDepositAddress,
-          abi: tokenizedDepositABI,
-          functionName: "swapTokens",
-          args: [recipient as Address, amount],
-        }),
-    });
-
-    setTransferAmount("");
-  };
-
-  const handleAccrueInterest = async () => {
-    const target = accrueTarget.trim() || address;
-    if (!target || !isAddress(target)) {
-      toast.error("Provide a valid address to accrue interest for.");
-      return;
-    }
-
-    await executeTransaction({
-      actionId: "accrue",
-      loadingMessage: "Submitting accrue interest transaction...",
-      successMessage: "Interest accrual confirmed.",
-      write: () =>
-        writeContractAsync({
-          address: tokenizedDepositAddress,
-          abi: tokenizedDepositABI,
-          functionName: "accrueInterest",
-          args: [target as Address],
-        }),
-    });
-  };
-
-  const handleWhitelist = async () => {
-    const target = whitelistTarget.trim();
-    if (!isAddress(target)) {
-      toast.error("Provide a valid address to whitelist.");
-      return;
-    }
-
-    await executeTransaction({
-      actionId: "whitelist",
-      loadingMessage: "Submitting whitelist transaction...",
-      successMessage: "Whitelist update confirmed.",
-      write: () =>
-        writeContractAsync({
-          address: COMPLIANCE_ADDRESS,
-          abi: complianceABI,
-          functionName: "whitelistUser",
-          args: [target as Address],
-        }),
-    });
-
-    setWhitelistTarget("");
-  };
-
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-8 sm:px-8 sm:py-10">
       <div className="pointer-events-none absolute inset-0 opacity-80">
@@ -297,6 +119,7 @@ export default function Home() {
       </div>
 
       <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-6">
+        {/* Header */}
         <section className="rounded-2xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="space-y-3">
@@ -308,10 +131,9 @@ export default function Home() {
                 Tokenized Deposit Dashboard
               </h1>
               <p className="max-w-2xl text-sm text-slate-600 dark:text-slate-400 sm:text-base">
-                Securely manage deposit issuance flows with on-chain staking, compliant transfers, and governance-linked admin actions.
+                Full-featured demo: deposits, staking, governance, compliance, and cross-chain bridge operations.
               </p>
             </div>
-
             <div className="flex items-center justify-start md:justify-end">
               <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <ConnectButton accountStatus="address" showBalance={false} chainStatus="name" />
@@ -320,6 +142,7 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Network warning */}
         {mounted && isConnected && !onSupportedChain ? (
           <Card className="border-amber-300/60 bg-amber-50/80 dark:border-amber-700/50 dark:bg-amber-900/20">
             <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -327,62 +150,54 @@ export default function Home() {
                 <CircleAlert className="mt-0.5 h-5 w-5 text-amber-600 dark:text-amber-400" />
                 <div className="space-y-1">
                   <p className="font-semibold text-amber-900 dark:text-amber-200">Unsupported Network</p>
-                  <p className="text-sm text-amber-800/80 dark:text-amber-300/80">
-                    Please switch your wallet to Hardhat Localhost (Chain ID 31337) to execute contract actions.
-                  </p>
+                  <p className="text-sm text-amber-800/80 dark:text-amber-300/80">Switch your wallet to Hardhat Localhost (Chain ID 31337).</p>
                 </div>
               </div>
-              <Button variant="outline" onClick={handleSwitchNetwork} loading={isSwitchingChain}>
-                Switch Network
-              </Button>
+              <button type="button" onClick={handleSwitchNetwork}
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-50 disabled:opacity-50 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900"
+                disabled={isSwitchingChain}>Switch Network</button>
             </CardContent>
           </Card>
         ) : null}
 
+        {/* KYC warning */}
+        {mounted && canRead && isWhitelisted === false ? (
+          <Card className="border-red-300/60 bg-red-50/80 dark:border-red-700/50 dark:bg-red-900/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <CircleAlert className="mt-0.5 h-5 w-5 text-red-600 dark:text-red-400" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-red-900 dark:text-red-200">Not KYC Whitelisted</p>
+                  <p className="text-sm text-red-800/80 dark:text-red-300/80">Your address is not in the KYC whitelist. Most contract interactions will revert.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {/* Stat cards */}
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Card>
             <CardHeader>
-              <CardDescription className="flex items-center gap-2">
-                <Wallet className="h-4 w-4" />
-                Token Balance
-              </CardDescription>
-              <CardTitle className="text-2xl">
-                {!mounted
-                  ? "0.0000 TDHK"
-                  : isTokenBalanceLoading && canRead
-                    ? "Loading..."
-                    : `${formatTokenAmount(tokenBalance as bigint)} TDHK`}
-              </CardTitle>
+              <CardDescription className="flex items-center gap-2"><Wallet className="h-4 w-4" />Token Balance</CardDescription>
+              <CardTitle className="text-2xl">{!mounted ? "0.0000 TDHK" : isTokenBalanceLoading && canRead ? "Loading..." : `${formatTokenAmount(tokenBalance as bigint)} TDHK`}</CardTitle>
             </CardHeader>
           </Card>
-
           <Card>
             <CardHeader>
-              <CardDescription className="flex items-center gap-2">
-                <PiggyBank className="h-4 w-4" />
-                Staked Balance
-              </CardDescription>
-              <CardTitle className="text-2xl">
-                {!mounted
-                  ? "0.0000 TDHK"
-                  : isStakedBalanceLoading && canRead
-                    ? "Loading..."
-                    : `${formatTokenAmount(stakedBalance as bigint)} TDHK`}
-              </CardTitle>
+              <CardDescription className="flex items-center gap-2"><PiggyBank className="h-4 w-4" />Staked Balance</CardDescription>
+              <CardTitle className="text-2xl">{!mounted ? "0.0000 TDHK" : isStakedBalanceLoading && canRead ? "Loading..." : `${formatTokenAmount(stakedBalance as bigint)} TDHK`}</CardTitle>
             </CardHeader>
           </Card>
-
           <Card>
             <CardHeader>
-              <CardDescription className="flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                Session Status
-              </CardDescription>
+              <CardDescription className="flex items-center gap-2"><Activity className="h-4 w-4" />Session Status</CardDescription>
               <CardTitle className="text-2xl">{!mounted ? "Disconnected" : isConnected ? "Connected" : "Disconnected"}</CardTitle>
             </CardHeader>
           </Card>
         </section>
 
+        {/* Account Snapshot */}
         <Card>
           <CardHeader>
             <CardTitle>Account Snapshot</CardTitle>
@@ -418,148 +233,32 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Staking Interface</CardTitle>
-              <CardDescription>Lock TDHK for 30 days with on-chain stake and withdraw transactions.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="stake-amount">Stake Amount (TDHK)</Label>
-                <Input
-                  id="stake-amount"
-                  inputMode="decimal"
-                  placeholder="e.g. 100.5"
-                  value={stakeAmount}
-                  onChange={(event) => setStakeAmount(event.target.value)}
-                />
-              </div>
+        {/* Tab navigation */}
+        <Tabs active={activeTab} onChange={setActiveTab} isAdmin={isAdmin} />
 
-              <Button
-                className="w-full"
-                onClick={handleStake}
-                loading={activeAction === "stake"}
-                disabled={!mounted || !canWrite}
-              >
-                Stake Deposit
-              </Button>
-
-              <div className="space-y-2">
-                <Label htmlFor="unstake-amount">Withdraw Staked Amount (TDHK)</Label>
-                <Input
-                  id="unstake-amount"
-                  inputMode="decimal"
-                  placeholder="e.g. 25"
-                  value={unstakeAmount}
-                  onChange={(event) => setUnstakeAmount(event.target.value)}
-                />
-              </div>
-
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={handleUnstake}
-                loading={activeAction === "unstake"}
-                disabled={!mounted || !canWrite}
-              >
-                Withdraw Stake
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Transfer Interface</CardTitle>
-              <CardDescription>
-                Execute compliant peer transfers via <span className="font-mono">swapTokens()</span> with protocol fee logic.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="recipient-address">Recipient Address</Label>
-                <Input
-                  id="recipient-address"
-                  placeholder="0x..."
-                  value={transferRecipient}
-                  onChange={(event) => setTransferRecipient(event.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="transfer-amount">Amount (TDHK)</Label>
-                <Input
-                  id="transfer-amount"
-                  inputMode="decimal"
-                  placeholder="e.g. 10"
-                  value={transferAmount}
-                  onChange={(event) => setTransferAmount(event.target.value)}
-                />
-              </div>
-
-              <Button
-                className="w-full"
-                onClick={handleTransfer}
-                loading={activeAction === "transfer"}
-                disabled={!mounted || !canWrite}
-              >
-                <ArrowLeftRight className="h-4 w-4" />
-                Transfer Tokens
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5" />
-              Admin and Bank Actions
-            </CardTitle>
-            <CardDescription>
-              Optional MVP controls for interest accrual and KYC whitelisting. Role-gated by smart contract permissions.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-              <Label htmlFor="accrue-user">Accrue Interest For Address</Label>
-              <Input
-                id="accrue-user"
-                placeholder="Leave empty to use connected wallet"
-                value={accrueTarget}
-                onChange={(event) => setAccrueTarget(event.target.value)}
-              />
-              <Button
-                className="w-full"
-                variant="secondary"
-                onClick={handleAccrueInterest}
-                loading={activeAction === "accrue"}
-                disabled={!mounted || !canWrite}
-              >
-                Trigger accrueInterest()
-              </Button>
-            </div>
-
-            <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-              <Label htmlFor="whitelist-user">Whitelist User Address</Label>
-              <Input
-                id="whitelist-user"
-                placeholder="0x..."
-                value={whitelistTarget}
-                onChange={(event) => setWhitelistTarget(event.target.value)}
-              />
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={handleWhitelist}
-                loading={activeAction === "whitelist"}
-                disabled={!mounted || !canWrite}
-              >
-                Trigger whitelistUser()
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Active section */}
+        {activeTab === "dashboard" && (
+          <DashboardSection tokenAddress={tokenAddress} tokenBalance={tokenBalance as bigint} stakedBalance={stakedBalance as bigint}
+            canWrite={canWrite} refetchToken={refetchTokenBalance} refetchStaked={refetchStakedBalance} />
+        )}
+        {activeTab === "banking" && (
+          <BankingSection tokenAddress={tokenAddress} accountAddress={accountAddress} canWrite={canWrite} refetchToken={refetchTokenBalance} />
+        )}
+        {activeTab === "compliance" && (
+          <ComplianceSection complianceAddress={complianceAddress} accountAddress={accountAddress} canWrite={canWrite} />
+        )}
+        {activeTab === "admin" && (
+          <AdminSection tokenAddress={tokenAddress} interestManagerAddress={interestManagerAddress} canWrite={canWrite} isAdmin={isAdmin} refetchToken={refetchTokenBalance} />
+        )}
+        {activeTab === "governance" && (
+          <GovernanceSection accountAddress={accountAddress} canWrite={canWrite} />
+        )}
+        {activeTab === "validators" && (
+          <ValidatorsSection tokenAddress={tokenAddress} />
+        )}
+        {activeTab === "bridge" && (
+          <BridgeSection canWrite={canWrite} />
+        )}
       </div>
     </main>
   );

@@ -42,7 +42,7 @@ export function ValidatorsSection({ tokenAddress }: Props) {
   });
 
   const { data: adminClaimable } = useReadContract({
-    address: tokenAddress, abi: tokenizedDepositABI, functionName: "claimableFees",
+    address: tokenAddress, abi: tokenizedDepositABI, functionName: "pendingFees",
     args: [adminAddress ?? zeroAddress], query: { enabled: Boolean(adminAddress) },
   });
 
@@ -66,7 +66,7 @@ export function ValidatorsSection({ tokenAddress }: Props) {
             address: tokenAddress, abi: tokenizedDepositABI, functionName: "validatorShares", args: [addr],
           }) as Promise<bigint>,
           client.readContract({
-            address: tokenAddress, abi: tokenizedDepositABI, functionName: "claimableFees", args: [addr],
+            address: tokenAddress, abi: tokenizedDepositABI, functionName: "pendingFees", args: [addr],
           }) as Promise<bigint>,
         ]);
         results.push({ address: addr, entryTime: bankInfo[0], contribution: bankInfo[1], feesGenerated: bankInfo[2], founder: bankInfo[3], share, claimable });

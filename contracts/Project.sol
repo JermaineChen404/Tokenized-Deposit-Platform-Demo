@@ -385,6 +385,14 @@ contract TokenizedDeposit is ERC20, AccessControl {
         emit FeesClaimed(msg.sender, pending);
     }
 
+    function pendingFees(address validator) public view returns (uint256) {
+        uint256 shares = validatorShares[validator];
+        if (shares == 0 || totalShares == 0) return claimableFees[validator];
+        uint256 accumulated = (shares * accumulatedFeePerShare) / 1e18;
+        uint256 pending = accumulated > rewardDebt[validator] ? accumulated - rewardDebt[validator] : 0;
+        return pending + claimableFees[validator];
+    }
+
     // --- Bank Onboarding & Share Management ---
     function addBank(address bank, uint256 contribution, bool founder) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(!hasRole(BANK_ROLE, bank), "Bank already added");

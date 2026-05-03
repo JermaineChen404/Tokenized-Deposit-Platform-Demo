@@ -19,15 +19,19 @@ type TabsProps = {
   onChange: (id: TabId) => void;
   isAdmin: boolean;
   isCompliance: boolean;
+  isValidator: boolean;
 };
 
-export function Tabs({ active, onChange, isAdmin, isCompliance }: TabsProps) {
+export function Tabs({ active, onChange, isAdmin, isCompliance, isValidator }: TabsProps) {
   const visibleTabs = TABS.filter((tab) => {
-    if (tab.id === "admin" || tab.id === "governance") {
+    if (tab.id === "admin") {
       return isAdmin;
     }
     if (tab.id === "compliance") {
       return isAdmin || isCompliance;
+    }
+    if (tab.id === "governance") {
+      return isAdmin || isValidator;
     }
     return true;
   });

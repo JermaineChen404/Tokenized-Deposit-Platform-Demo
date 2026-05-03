@@ -20,8 +20,8 @@ import { ValidatorsSection } from "@/components/sections/validators-section";
 import { BridgeSection } from "@/components/sections/bridge-section";
 import { tokenizedDepositABI, TOKENIZED_DEPOSIT_ADDRESS } from "@/constants/abi";
 import { complianceABI, COMPLIANCE_ADDRESS } from "@/constants/admin";
-import { INTEREST_MANAGER_ADDRESS, interestManagerABI } from "@/constants/governance";
-import { DEFAULT_ADMIN_ROLE, COMPLIANCE_ROLE } from "@/constants/roles";
+import { INTEREST_MANAGER_ADDRESS, interestManagerABI, INTEREST_GOVERNANCE_ADDRESS, interestGovernanceABI } from "@/constants/governance";
+import { DEFAULT_ADMIN_ROLE, COMPLIANCE_ROLE, VALIDATOR_ROLE } from "@/constants/roles";
 
 function formatTokenAmount(value: bigint | undefined) {
   if (value === undefined) return "0.0000";
@@ -93,6 +93,12 @@ export default function Home() {
     args: [COMPLIANCE_ROLE, accountAddress], query: { enabled: canRead },
   });
   const isCompliance = hasComplianceRole === true;
+
+  const { data: hasValidatorRole } = useReadContract({
+    address: INTEREST_GOVERNANCE_ADDRESS, abi: interestGovernanceABI, functionName: "hasRole",
+    args: [VALIDATOR_ROLE, accountAddress], query: { enabled: canRead },
+  });
+  const isValidator = hasValidatorRole === true;
 
   const walletLabel = useMemo(() => {
     if (!address) return "Not connected";
@@ -225,7 +231,7 @@ export default function Home() {
         </Card>
 
         {/* Tab navigation */}
-        <Tabs active={activeTab} onChange={setActiveTab} isAdmin={isAdmin} isCompliance={isCompliance} />
+        <Tabs active={activeTab} onChange={setActiveTab} isAdmin={isAdmin} isCompliance={isCompliance} isValidator={isValidator} />
 
         {/* Active section */}
         {activeTab === "dashboard" && (

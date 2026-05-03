@@ -52,8 +52,8 @@ export function BankingSection({ tokenAddress, accountAddress, canWrite, refetch
 
   const connectedOrDefault = (input: string) => (input.trim() || accountAddress) as Address;
 
-  const { data: claimableFees, refetch: refetchFees } = useReadContract({
-    address: tokenAddress, abi: tokenizedDepositABI, functionName: "claimableFees",
+  const { data: pendingFeesRaw, refetch: refetchFees } = useReadContract({
+    address: tokenAddress, abi: tokenizedDepositABI, functionName: "pendingFees",
     args: [accountAddress], query: { enabled: accountAddress !== zeroAddress },
   });
 
@@ -185,9 +185,9 @@ export function BankingSection({ tokenAddress, accountAddress, canWrite, refetch
         <CardContent className="space-y-4">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
             <span className="text-sm text-slate-600 dark:text-slate-400">Claimable fees: </span>
-            <strong className="text-lg">{claimableFees !== undefined ? `${Number(formatEther(claimableFees as bigint)).toFixed(4)} TDHK` : "Loading..."}</strong>
+            <strong className="text-lg">{pendingFeesRaw !== undefined ? `${Number(formatEther(pendingFeesRaw as bigint)).toFixed(4)} TDHK` : "Loading..."}</strong>
           </div>
-          <Button className="w-full" onClick={handleClaim} loading={activeAction === "claim"} disabled={!canWrite || (claimableFees as bigint ?? 0n) === 0n}>Claim Fees</Button>
+          <Button className="w-full" onClick={handleClaim} loading={activeAction === "claim"} disabled={!canWrite || (pendingFeesRaw as bigint ?? 0n) === 0n}>Claim Fees</Button>
         </CardContent>
       </Card>
     </section>

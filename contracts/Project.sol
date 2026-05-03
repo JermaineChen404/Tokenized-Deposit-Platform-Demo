@@ -398,8 +398,8 @@ contract TokenizedDeposit is ERC20, AccessControl {
         if (founder) {
             rawShare = (contribution * 90 * 1e18) / (initialTotalLiquidity - 3_000_000 ether);
         } else {
-            require(totalSupply() > 0, "No current liquidity");
-            rawShare = (contribution * 90 * 1e18) / totalSupply(); 
+            uint256 base = totalSupply() > 0 ? totalSupply() : (initialTotalLiquidity - 3_000_000 ether);
+            rawShare = (contribution * 90 * 1e18) / base; 
         }
 
         uint256 bankShare = (rawShare * 9) / 10;

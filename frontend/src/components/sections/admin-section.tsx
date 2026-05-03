@@ -59,11 +59,6 @@ export function AdminSection({ tokenAddress, canWrite, isAdmin, refetchToken }: 
     address: tokenAddress, abi: tokenizedDepositABI, functionName: "lastReevaluation",
   });
 
-  const { data: validatorCount } = useReadContract({
-    address: tokenAddress, abi: tokenizedDepositABI, functionName: "validators",
-    args: [BigInt(0)],
-  });
-
   const execute = async (actionId: string, loading: string, success: string, write: () => Promise<`0x${string}`>) => {
     if (!canWrite) { toast.error("Connect wallet and switch to Hardhat Localhost (31337)."); return; }
     setActiveAction(actionId);

@@ -6,7 +6,7 @@ import { formatEther, isAddress } from "viem";
 import { toast } from "sonner";
 import { useReadContract, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
-import { Gavel, Vote, Settings, FileText } from "lucide-react";
+import { Gavel, Vote, FileText, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,12 +21,11 @@ import {
 import { wagmiConfig } from "@/providers/web3-provider";
 
 type GovType = "rate" | "tx";
-type SubTab = "validator" | "proxy" | "admin";
+type SubTab = "validator" | "proxy";
 
 const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: "validator", label: "As Validator" },
   { id: "proxy", label: "As Proxy" },
-  { id: "admin", label: "Admin" },
 ];
 
 type Props = {
@@ -52,9 +51,6 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
   const [voteId, setVoteId] = useState("");
   const [voteChoice, setVoteChoice] = useState("for");
   const [proxyValidator, setProxyValidator] = useState("");
-  const [executeId, setExecuteId] = useState("");
-  const [shareAddr, setShareAddr] = useState("");
-  const [shareVal, setShareVal] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
 
   const isRate = govType === "rate";
@@ -129,24 +125,6 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
     await execute("voteProxy", "Voting...", "Vote cast.",
       () => writeContractAsync({ address: govAddr, abi: interestGovernanceABI, functionName: "voteByProxy", args: [v as Address, BigInt(id), voteChoice] }));
     setVoteId(""); setProxyValidator("");
-  };
-
-  const handleExecute = async () => {
-    const id = executeId.trim();
-    if (!id || !/^\d+$/.test(id)) { toast.error("Valid proposal ID required."); return; }
-    await execute("execute", "Executing...", "Proposal executed.",
-      () => writeContractAsync({ address: govAddr, abi: interestGovernanceABI, functionName: "executeProposal", args: [BigInt(id)] }));
-    setExecuteId("");
-  };
-
-  const handleSetShare = async () => {
-    const a = shareAddr.trim();
-    if (!isAddress(a)) { toast.error("Valid address required."); return; }
-    const v = shareVal.trim();
-    if (!v || !/^\d+$/.test(v)) { toast.error("Valid integer share required."); return; }
-    await execute("setShare", "Setting share...", "Share updated.",
-      () => writeContractAsync({ address: govAddr, abi: interestGovernanceABI, functionName: "setValidatorShare", args: [a as Address, BigInt(v)] }));
-    setShareAddr(""); setShareVal("");
   };
 
   return (
@@ -254,43 +232,23 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
               </div>
             </div>
           )}
-
-          {subTab === "admin" && (
-            <div className="space-y-6">
-              <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-                <Label className="mb-2 block font-semibold"><Gavel className="inline h-4 w-4 mr-1" />Execute Proposal</Label>
-                <div className="flex gap-3 items-end">
-                  <div className="flex-1 space-y-2"><Label>Proposal ID</Label><Input placeholder="1" value={executeId} onChange={(e) => setExecuteId(e.target.value)} /></div>
-                  <Button onClick={handleExecute} loading={activeAction === "execute"} disabled={!canWrite}>Execute</Button>
-                </div>
-              </div>
-              <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-                <Label className="mb-2 block font-semibold"><Settings className="inline h-4 w-4 mr-1" />Set Validator Share</Label>
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div className="flex-1 min-w-[120px] space-y-2"><Label>Address</Label><Input placeholder="0x..." value={shareAddr} onChange={(e) => setShareAddr(e.target.value)} /></div>
-                  <div className="flex-1 min-w-[120px] space-y-2"><Label>Share</Label><Input placeholder="1e18" value={shareVal} onChange={(e) => setShareVal(e.target.value)} /></div>
-                  <Button onClick={handleSetShare} loading={activeAction === "setShare"} disabled={!canWrite}>Set Share</Button>
-                </div>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Proposals ({proposalCounter !== undefined ? String(proposalCounter) : "..."})</CardTitle>
-          <CardDescription>All proposals on {isRate ? "InterestRateGovernance" : "TransactionValidationGovernance"}.</CardDescription>
+          <CardDescription>All proposals on {isRate ? "InterestRateGovernance" : "TransactionValidationGovernance"}. Anyone can execute an approved proposal.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ProposalTable govType={govType} />
+          <ProposalTable govType={govType} canWrite={canWrite} />
         </CardContent>
       </Card>
     </section>
   );
 }
 
-function ProposalTable({ govType }: { govType: GovType }) {
+function ProposalTable({ govType, canWrite }: { govType: GovType; canWrite: boolean }) {
   const isRate = govType === "rate";
   const govAddr = isRate ? INTEREST_GOVERNANCE_ADDRESS : TX_GOVERNANCE_ADDRESS;
 
@@ -310,23 +268,25 @@ function ProposalTable({ govType }: { govType: GovType }) {
           <TableHead>Against</TableHead>
           <TableHead>Declined</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead />
         </TableRow>
       </TableHeader>
       <TableBody>
         {Array.from({ length: count }, (_, i) => i + 1).map((id) => (
-          <ProposalRow key={id} govType={govType} proposalId={id} />
+          <ProposalRow key={id} govType={govType} proposalId={id} canWrite={canWrite} />
         ))}
       </TableBody>
     </Table>
   );
 }
 
-function ProposalRow({ govType, proposalId }: { govType: GovType; proposalId: number }) {
+function ProposalRow({ govType, proposalId, canWrite }: { govType: GovType; proposalId: number; canWrite: boolean }) {
   const isRate = govType === "rate";
   const idBn = BigInt(proposalId);
   const rateAddr = INTEREST_GOVERNANCE_ADDRESS;
   const txAddr = TX_GOVERNANCE_ADDRESS;
   const govAddr = isRate ? rateAddr : txAddr;
+  const { writeContractAsync } = useWriteContract();
 
   const { data: proposal } = useReadContract({
     address: govAddr, abi: interestGovernanceABI as never, functionName: "proposals", args: [idBn],
@@ -344,14 +304,29 @@ function ProposalRow({ govType, proposalId }: { govType: GovType; proposalId: nu
   });
 
   if (!p || (p[0] as bigint) === 0n) return (
-    <TableRow><TableCell className="font-mono">#{proposalId}</TableCell><TableCell colSpan={5} className="text-slate-400">Not found</TableCell></TableRow>
+    <TableRow><TableCell className="font-mono">#{proposalId}</TableCell><TableCell colSpan={6} className="text-slate-400">Not found</TableCell></TableRow>
   );
 
+  const votesFor = p[1] as bigint;
+  const votesAgainst = p[2] as bigint;
+  const votesDeclined = p[3] as bigint;
+  const executed = p[4] as boolean;
+  const canExecute = !executed && votesFor > votesAgainst && votesFor > 0n;
+
   const getStatus = () => {
-    if (p[4]) return <span className="text-emerald-600 font-medium">Executed</span>;
-    if (p[3] > p[1] && p[3] > p[2]) return <span className="text-amber-600 font-medium">Declined</span>;
-    if (p[1] > p[2]) return <span className="text-emerald-600 font-medium">Approved</span>;
+    if (executed) return <span className="text-emerald-600 font-medium">Executed</span>;
+    if (votesDeclined > votesFor && votesDeclined > votesAgainst) return <span className="text-amber-600 font-medium">Declined</span>;
+    if (votesFor > votesAgainst) return <span className="text-emerald-600 font-medium">Approved</span>;
     return <span className="text-slate-500 font-medium">Pending</span>;
+  };
+
+  const handleExecute = async () => {
+    if (!canWrite) { toast.error("Connect wallet and switch to Hardhat Localhost (31337)."); return; }
+    try {
+      const h = await writeContractAsync({ address: govAddr, abi: interestGovernanceABI, functionName: "executeProposal", args: [idBn] });
+      const tx = (async () => { await waitForTransactionReceipt(wagmiConfig, { hash: h }); return h; })();
+      await toast.promise(tx, { loading: "Executing...", success: "Proposal executed.", error: (e: unknown) => getErrorMessage(e) });
+    } catch { /* handled by toast */ }
   };
 
   const displayValue = isRate
@@ -362,10 +337,17 @@ function ProposalRow({ govType, proposalId }: { govType: GovType; proposalId: nu
     <TableRow>
       <TableCell className="font-mono">#{proposalId}</TableCell>
       <TableCell className="font-mono text-xs max-w-[200px] truncate">{displayValue}</TableCell>
-      <TableCell>{formatEther(p[1] as bigint)}</TableCell>
-      <TableCell>{formatEther(p[2] as bigint)}</TableCell>
-      <TableCell>{formatEther(p[3] as bigint)}</TableCell>
+      <TableCell>{formatEther(votesFor)}</TableCell>
+      <TableCell>{formatEther(votesAgainst)}</TableCell>
+      <TableCell>{formatEther(votesDeclined)}</TableCell>
       <TableCell>{getStatus()}</TableCell>
+      <TableCell>
+        {canExecute && (
+          <Button size="sm" variant="outline" onClick={handleExecute} disabled={!canWrite}>
+            <Play className="h-3.5 w-3.5 mr-1" /> Execute
+          </Button>
+        )}
+      </TableCell>
     </TableRow>
   );
 }

@@ -81,7 +81,7 @@ abstract contract BaseGovernance is AccessControl {
         emit Voted(proposalId, validator, choice, weight);
     }
 
-    function executeProposal(uint256 proposalId) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function executeProposal(uint256 proposalId) external {
         Proposal storage proposal = proposals[proposalId];
         require(proposal.id != 0, "Invalid proposal");
         require(!proposal.executed, "Already executed");

@@ -21,7 +21,7 @@ import { BridgeSection } from "@/components/sections/bridge-section";
 import { tokenizedDepositABI, TOKENIZED_DEPOSIT_ADDRESS } from "@/constants/abi";
 import { complianceABI, COMPLIANCE_ADDRESS } from "@/constants/admin";
 import { INTEREST_MANAGER_ADDRESS, interestManagerABI } from "@/constants/governance";
-import { DEFAULT_ADMIN_ROLE } from "@/constants/roles";
+import { DEFAULT_ADMIN_ROLE, COMPLIANCE_ROLE } from "@/constants/roles";
 
 function formatTokenAmount(value: bigint | undefined) {
   if (value === undefined) return "0.0000";
@@ -87,6 +87,12 @@ export default function Home() {
   });
 
   const isAdmin = (isAdminTD === true || isAdminCompliance === true || isAdminInterestManager === true);
+
+  const { data: hasComplianceRole } = useReadContract({
+    address: complianceAddress, abi: complianceABI, functionName: "hasRole",
+    args: [COMPLIANCE_ROLE, accountAddress], query: { enabled: canRead },
+  });
+  const isCompliance = hasComplianceRole === true;
 
   const walletLabel = useMemo(() => {
     if (!address) return "Not connected";
@@ -219,7 +225,7 @@ export default function Home() {
         </Card>
 
         {/* Tab navigation */}
-        <Tabs active={activeTab} onChange={setActiveTab} isAdmin={isAdmin} />
+        <Tabs active={activeTab} onChange={setActiveTab} isAdmin={isAdmin} isCompliance={isCompliance} />
 
         {/* Active section */}
         {activeTab === "dashboard" && (

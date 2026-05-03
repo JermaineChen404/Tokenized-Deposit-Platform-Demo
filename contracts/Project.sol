@@ -401,6 +401,8 @@ contract TokenizedDeposit is ERC20, AccessControl {
 
         uint256 bankShare = (rawShare * 9) / 10;
         _updateShare(bank, bankShare);
+        interestGovernance.registerValidator(bank, bankShare);
+        txGovernance.registerValidator(bank, bankShare);
         _recalculateAdminShare();
         emit BankAdded(bank, contribution, founder);
     }

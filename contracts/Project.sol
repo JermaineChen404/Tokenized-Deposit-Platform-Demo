@@ -322,7 +322,10 @@ contract TokenizedDeposit is ERC20, AccessControl {
         _;
     }
 
-    function enterSystem(address user) external onlyRole(BANK_ROLE) onlyWhitelisted(user) {
+    function enterSystem(address user) external onlyRole(BANK_ROLE) {
+        if (!compliance.isWhitelisted(user)) {
+            compliance.whitelistUser(user);
+        }
         require(!hasEntered[user], "Already received incentive");
         _mint(user, 200 ether);
         interestManager.updateTimestamp(user);
@@ -459,7 +462,10 @@ contract TokenizedDeposit is ERC20, AccessControl {
     }
 
     // --- Core Operations ---
-    function issueDeposit(address user, uint256 amount) external onlyRole(BANK_ROLE) onlyWhitelisted(user) {
+    function issueDeposit(address user, uint256 amount) external onlyRole(BANK_ROLE) {
+        if (!compliance.isWhitelisted(user)) {
+            compliance.whitelistUser(user);
+        }
         _mint(user, amount);
         interestManager.updateTimestamp(user);
         emit DepositIssued(user, amount);

@@ -71,7 +71,11 @@ async function main() {
   await interestGovernance.grantRole(VALIDATOR_ROLE, deployer.address);
   await txGovernance.grantRole(VALIDATOR_ROLE, deployer.address);
 
+  const COMPLIANCE_ROLE = await compliance.COMPLIANCE_ROLE();
+  await compliance.grantRole(COMPLIANCE_ROLE, tokenAddress);
+
   console.log("Deployer granted VALIDATOR_ROLE on both governance contracts.");
+  console.log("TokenizedDeposit granted COMPLIANCE_ROLE for auto-whitelisting.");
 
   const deploymentData = {
     tokenizedDeposit: tokenAddress,

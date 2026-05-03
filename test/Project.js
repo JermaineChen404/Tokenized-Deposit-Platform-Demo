@@ -43,6 +43,7 @@ describe("TokenizedDeposit", function () {
     // Setup Roles
     const COMPLIANCE_ROLE = await compliance.COMPLIANCE_ROLE();
     await compliance.grantRole(COMPLIANCE_ROLE, admin.address);
+    await compliance.grantRole(COMPLIANCE_ROLE, await token.getAddress());
 
     const TIMESTAMP_UPDATER_ROLE = await interestManager.TIMESTAMP_UPDATER_ROLE();
     await interestManager.grantRole(TIMESTAMP_UPDATER_ROLE, await token.getAddress());
@@ -81,8 +82,6 @@ describe("TokenizedDeposit", function () {
   });
 
   it("Should issue deposits and accrue interest correctly", async function () {
-    await compliance.whitelistUser(user1.address);
-
     await token.connect(bank).issueDeposit(user1.address, ethers.parseEther("100000"));
     expect(await token.balanceOf(user1.address)).to.equal(ethers.parseEther("100000"));
 
@@ -103,7 +102,6 @@ describe("TokenizedDeposit", function () {
 
   it("Should handle fee distribution and claiming correctly", async function () {
     await compliance.whitelistUser(bank.address);
-    await compliance.whitelistUser(user1.address);
     await compliance.whitelistUser(user2.address);
 
     await token.connect(bank).issueDeposit(user1.address, ethers.parseEther("10000"));

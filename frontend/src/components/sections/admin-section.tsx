@@ -6,19 +6,17 @@ import { isAddress, parseEther } from "viem";
 import { toast } from "sonner";
 import { useReadContract, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
-import { Building, RefreshCw, Percent, Shield, UserPlus, UserMinus } from "lucide-react";
+import { Building, RefreshCw, Shield, UserPlus, UserMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { tokenizedDepositABI } from "@/constants/abi";
-import { interestManagerABI } from "@/constants/governance";
 import { ALL_CONTRACT_ROLES, DEFAULT_ADMIN_ROLE } from "@/constants/roles";
 import { wagmiConfig } from "@/providers/web3-provider";
 
 type Props = {
   tokenAddress: Address;
-  interestManagerAddress: Address;
   canWrite: boolean;
   isAdmin: boolean;
   refetchToken: () => Promise<unknown>;
@@ -43,12 +41,11 @@ function getErrorMessage(error: unknown) {
   return "Transaction failed.";
 }
 
-export function AdminSection({ tokenAddress, interestManagerAddress, canWrite, isAdmin, refetchToken }: Props) {
+export function AdminSection({ tokenAddress, canWrite, isAdmin, refetchToken }: Props) {
   const { writeContractAsync } = useWriteContract();
   const [bankAddress, setBankAddress] = useState("");
   const [bankContribution, setBankContribution] = useState("");
   const [bankFounder, setBankFounder] = useState(false);
-  const [newRateBps, setNewRateBps] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
 
   const [grantRoleKey, setGrantRoleKey] = useState(ALL_CONTRACT_ROLES[0].key);
@@ -65,10 +62,6 @@ export function AdminSection({ tokenAddress, interestManagerAddress, canWrite, i
   const { data: validatorCount } = useReadContract({
     address: tokenAddress, abi: tokenizedDepositABI, functionName: "validators",
     args: [BigInt(0)],
-  });
-
-  const { data: interestRate } = useReadContract({
-    address: interestManagerAddress, abi: interestManagerABI, functionName: "interestRate",
   });
 
   const execute = async (actionId: string, loading: string, success: string, write: () => Promise<`0x${string}`>) => {
@@ -97,16 +90,6 @@ export function AdminSection({ tokenAddress, interestManagerAddress, canWrite, i
       () => writeContractAsync({ address: tokenAddress, abi: tokenizedDepositABI, functionName: "reevaluateShares", args: [] }));
   };
 
-  const handleUpdateRate = async () => {
-    const trimmed = newRateBps.trim();
-    if (!trimmed || !/^\d+$/.test(trimmed)) { toast.error("Enter a valid integer rate in basis points."); return; }
-    const rate = BigInt(trimmed);
-    if (rate <= 0n) { toast.error("Rate must be greater than 0."); return; }
-    await execute("updateRate", "Updating rate...", "Rate updated.",
-      () => writeContractAsync({ address: interestManagerAddress, abi: interestManagerABI, functionName: "updateRate", args: [rate] }));
-    setNewRateBps("");
-  };
-
   const handleGrantRole = async () => {
     const addr = grantAddress.trim();
     if (!isAddress(addr)) { toast.error("Valid address required."); return; }
@@ -127,8 +110,9 @@ export function AdminSection({ tokenAddress, interestManagerAddress, canWrite, i
     setGrantAddress("");
   };
 
-  const canReevaluate = lastReevaluation !== undefined && lastReevaluation > 0n
-    ? Date.now() / 1000 >= Number(lastReevaluation) + 90 * 24 * 60 * 60
+  const lr = lastReevaluation as bigint | null | undefined;
+  const canReevaluate = lr != null && lr > 0n
+    ? Date.now() / 1000 >= Number(lr) + 90 * 24 * 60 * 60
     : true;
 
   if (!isAdmin) {
@@ -173,28 +157,13 @@ export function AdminSection({ tokenAddress, interestManagerAddress, canWrite, i
           <CardContent className="space-y-4">
             <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-900">
               <div>Total shares: <strong>{totalShares ? String(totalShares) : "—"}</strong></div>
-              <div>Last reevaluation: <strong>{lastReevaluation && lastReevaluation > 0n ? new Date(Number(lastReevaluation) * 1000).toLocaleString() : "Never"}</strong></div>
-              <div>Next eligible: <strong>{canReevaluate ? "Now" : (lastReevaluation ? new Date((Number(lastReevaluation) + 90 * 24 * 60 * 60) * 1000).toLocaleString() : "N/A")}</strong></div>
+              <div>Last reevaluation: <strong>{lr != null && lr > 0n ? new Date(Number(lr) * 1000).toLocaleString() : "Never"}</strong></div>
+              <div>Next eligible: <strong>{canReevaluate ? "Now" : (lr != null ? new Date((Number(lr) + 90 * 24 * 60 * 60) * 1000).toLocaleString() : "N/A")}</strong></div>
             </div>
             <Button className="w-full" onClick={handleReevaluate} loading={activeAction === "reevaluate"} disabled={!canWrite || !canReevaluate}>Reevaluate Shares</Button>
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Percent className="h-5 w-5" />Interest Rate</CardTitle>
-          <CardDescription>Update the global base interest rate (RATE_UPDATER_ROLE).</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
-            <span className="text-sm text-slate-600 dark:text-slate-400">Current rate: </span>
-            <strong className="text-lg">{interestRate !== undefined ? `${Number(interestRate)} bps (${Number(interestRate) / 100}%)` : "Loading..."}</strong>
-          </div>
-          <div className="space-y-2"><Label>New Rate (basis points, e.g. 500 = 5%)</Label><Input inputMode="numeric" placeholder="500" value={newRateBps} onChange={(e) => setNewRateBps(e.target.value)} /></div>
-          <Button className="w-full" onClick={handleUpdateRate} loading={activeAction === "updateRate"} disabled={!canWrite}>Update Rate</Button>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>

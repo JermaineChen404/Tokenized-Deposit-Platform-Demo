@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import type { Address } from "viem";
 import { formatEther, zeroAddress } from "viem";
 import { useReadContract, usePublicClient } from "wagmi";
-import { Landmark, Coins } from "lucide-react";
+import { Landmark, Coins, Shield } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { tokenizedDepositABI } from "@/constants/abi";
@@ -30,6 +30,20 @@ export function ValidatorsSection({ tokenAddress }: Props) {
 
   const { data: accumulatedFeePerShare } = useReadContract({
     address: tokenAddress, abi: tokenizedDepositABI, functionName: "accumulatedFeePerShare",
+  });
+
+  const { data: adminAddress } = useReadContract({
+    address: tokenAddress, abi: tokenizedDepositABI, functionName: "admin",
+  });
+
+  const { data: adminShare } = useReadContract({
+    address: tokenAddress, abi: tokenizedDepositABI, functionName: "validatorShares",
+    args: [adminAddress ?? zeroAddress], query: { enabled: Boolean(adminAddress) },
+  });
+
+  const { data: adminClaimable } = useReadContract({
+    address: tokenAddress, abi: tokenizedDepositABI, functionName: "claimableFees",
+    args: [adminAddress ?? zeroAddress], query: { enabled: Boolean(adminAddress) },
   });
 
   const loadBanks = useCallback(async () => {
@@ -67,6 +81,10 @@ export function ValidatorsSection({ tokenAddress }: Props) {
 
   useEffect(() => { loadBanks(); }, [loadBanks]);
 
+  const totalBankShares = banks.reduce((s, b) => s + (b.share ?? 0n), 0n);
+  const adminShareVal = (adminShare as bigint | undefined) ?? 0n;
+  const totalShares = totalBankShares + adminShareVal;
+
   return (
     <section className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -79,7 +97,7 @@ export function ValidatorsSection({ tokenAddress }: Props) {
         <Card>
           <CardHeader>
             <CardDescription className="flex items-center gap-2"><Coins className="h-4 w-4" />Total Shares</CardDescription>
-            <CardTitle className="text-2xl">{banks.length > 0 ? Number(formatEther(BigInt(banks.reduce((s, b) => s + Number(b.share), 0)))).toFixed(4) : "—"}</CardTitle>
+            <CardTitle className="text-2xl">{!loading ? Number(formatEther(totalShares)).toFixed(4) : "..."}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -93,12 +111,12 @@ export function ValidatorsSection({ tokenAddress }: Props) {
       <Card>
         <CardHeader>
           <CardTitle>Banks &amp; Validators</CardTitle>
-          <CardDescription>All registered banks with their shares, contributions, and claimable fees.</CardDescription>
+          <CardDescription>All registered banks with their shares, contributions, and claimable fees. Admin holds a permanent 10% of total shares.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <p className="text-sm text-slate-500 py-8 text-center">Loading validators...</p>
-          ) : banks.length === 0 ? (
+          ) : banks.length === 0 && adminShareVal === 0n ? (
             <p className="text-sm text-slate-500 py-8 text-center">No validators registered.</p>
           ) : (
             <Table>
@@ -114,6 +132,22 @@ export function ValidatorsSection({ tokenAddress }: Props) {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {adminShareVal > 0n && (
+                  <TableRow className="bg-amber-50/60 dark:bg-amber-900/20">
+                    <TableCell className="font-mono text-xs">
+                      <span className="inline-flex items-center gap-1">
+                        <Shield className="h-3 w-3 text-amber-600" />
+                        {adminAddress ? `${(adminAddress as string).slice(0, 6)}...${(adminAddress as string).slice(-4)}` : "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-amber-700 dark:text-amber-300">—</TableCell>
+                    <TableCell>{Number(formatEther(adminShareVal)).toFixed(4)}</TableCell>
+                    <TableCell className="text-amber-700 dark:text-amber-300">Admin</TableCell>
+                    <TableCell className="text-amber-700 dark:text-amber-300">—</TableCell>
+                    <TableCell>{adminClaimable !== undefined ? Number(formatEther(adminClaimable as bigint)).toFixed(4) : "0.0000"} TDHK</TableCell>
+                    <TableCell className="text-xs text-amber-700 dark:text-amber-300">—</TableCell>
+                  </TableRow>
+                )}
                 {banks.map((b) => (
                   <TableRow key={b.address}>
                     <TableCell className="font-mono text-xs">{b.address.slice(0, 6)}...{b.address.slice(-4)}</TableCell>

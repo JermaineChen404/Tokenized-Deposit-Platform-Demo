@@ -95,7 +95,12 @@ abstract contract BaseGovernance is AccessControl {
 
 /// @title InterestRateGovernance
 contract InterestRateGovernance is BaseGovernance {
+    InterestManager public interestManager;
     mapping(uint256 => uint256) public rateProposals;
+
+    constructor(address payable _interestManager) {
+        interestManager = InterestManager(_interestManager);
+    }
     uint256 public constant MIN_PROPOSAL_SHARES = 1e18;
     event ProposalCreated(uint256 id, uint256 proposedRate);
     event ProposalExecuted(uint256 id, uint256 newRate);
@@ -129,7 +134,9 @@ contract InterestRateGovernance is BaseGovernance {
     }
 
     function _executeApplicationLogic(uint256 proposalId) internal override {
-        emit ProposalExecuted(proposalId, rateProposals[proposalId]);
+        uint256 newRate = rateProposals[proposalId];
+        interestManager.updateRate(newRate);
+        emit ProposalExecuted(proposalId, newRate);
     }
 }
 
@@ -215,7 +222,6 @@ contract InterestManager is AccessControl {
 
     constructor(uint256 _interestRate) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(RATE_UPDATER_ROLE, msg.sender);
         interestRate = _interestRate;
     }
 
@@ -264,14 +270,13 @@ contract TokenizedDeposit is ERC20, AccessControl {
     uint256 public lastReevaluation;
     uint256 public constant MAX_VALIDATORS = 100;
 
+    address public admin;
+
     // Pull-Payment Dividend System Variables
     uint256 public accumulatedFeePerShare; // Scaled by 1e18 for precision
     mapping(address => uint256) public rewardDebt;
     mapping(address => uint256) public claimableFees;
 
-    // Staking Variables
-    mapping(address => uint256) public stakedBalances;
-    mapping(address => uint256) public stakingTimestamps;
     mapping(address => uint256) public lastAccrualTimestamp; // H3: cooldown for manual compounding
 
     struct BankInfo {
@@ -292,8 +297,6 @@ contract TokenizedDeposit is ERC20, AccessControl {
     event TokensSwapped(address indexed user, uint256 amount, uint256 fee);
     event ValidatorShareUpdated(address indexed validator, uint256 newShare);
     event FeeRecorded(address indexed bank, uint256 feeAmount);
-    event TokensStaked(address indexed user, uint256 amount);
-    event TokensUnstaked(address indexed user, uint256 amount);
     event FeesClaimed(address indexed bank, uint256 amount);
     event UserEnteredSystem(address indexed user, uint256 incentive);
     event BankAdded(address indexed bank, uint256 contribution, bool founder);
@@ -304,6 +307,7 @@ contract TokenizedDeposit is ERC20, AccessControl {
         address payable _interestGovernance, address payable _txGovernance
     ) ERC20("TokenizedDeposit", "TDHK") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        admin = msg.sender;
         compliance = Compliance(_compliance);
         interestManager = InterestManager(_interestManager);
         bridge = CrossChainBridge(_bridge);
@@ -387,15 +391,17 @@ contract TokenizedDeposit is ERC20, AccessControl {
         validators.push(bank);
         _grantRole(BANK_ROLE, bank);
 
-        uint256 share;
+        uint256 rawShare;
         if (founder) {
-            share = (contribution * 90 * 1e18) / (initialTotalLiquidity - 3_000_000 ether);
+            rawShare = (contribution * 90 * 1e18) / (initialTotalLiquidity - 3_000_000 ether);
         } else {
             require(totalSupply() > 0, "No current liquidity");
-            share = (contribution * 90 * 1e18) / totalSupply(); 
+            rawShare = (contribution * 90 * 1e18) / totalSupply(); 
         }
 
-        _updateShare(bank, share);
+        uint256 bankShare = (rawShare * 9) / 10;
+        _updateShare(bank, bankShare);
+        _recalculateAdminShare();
         emit BankAdded(bank, contribution, founder);
     }
 
@@ -425,7 +431,15 @@ contract TokenizedDeposit is ERC20, AccessControl {
             
             _updateShare(bank, newShare);
         }
+        _recalculateAdminShare();
         emit SharesReevaluated(block.timestamp);
+    }
+
+    function _recalculateAdminShare() internal {
+        if (admin == address(0)) return;
+        uint256 totalBankShares = totalShares - validatorShares[admin];
+        uint256 adminShare = totalBankShares / 9;
+        _updateShare(admin, adminShare);
     }
 
     function _updateShare(address bank, uint256 newShare) internal {
@@ -485,30 +499,6 @@ contract TokenizedDeposit is ERC20, AccessControl {
         interestManager.updateTimestamp(user);
         lastAccrualTimestamp[user] = block.timestamp;
         emit InterestAccrued(user, netInterest, protocolFee);
-    }
-
-    // --- 1-Month Staking Lock-Up ---
-    function stakeDeposit(uint256 amount) external onlyWhitelisted(msg.sender) {
-        require(amount > 0, "Amount must be > 0");
-        if (stakedBalances[msg.sender] > 0) {
-            require(block.timestamp >= stakingTimestamps[msg.sender] + 30 days, "Existing stake locked");
-        }
-        _transfer(msg.sender, address(this), amount);
-        
-        stakedBalances[msg.sender] += amount;
-        stakingTimestamps[msg.sender] = block.timestamp;
-        
-        emit TokensStaked(msg.sender, amount);
-    }
-
-    function withdrawStake(uint256 amount) external onlyWhitelisted(msg.sender) {
-        require(stakedBalances[msg.sender] >= amount, "Insufficient staked balance");
-        require(block.timestamp >= stakingTimestamps[msg.sender] + 30 days, "1-month lock active");
-        
-        stakedBalances[msg.sender] -= amount;
-        _transfer(address(this), msg.sender, amount); // Returns to circulation
-        
-        emit TokensUnstaked(msg.sender, amount);
     }
 
     // --- Swap with Tiered Fee Schedule ---

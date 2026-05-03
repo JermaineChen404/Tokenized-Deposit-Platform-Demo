@@ -24,7 +24,7 @@ describe("TokenizedDeposit", function () {
 
     // Deploy InterestRateGovernance
     const InterestGov = await ethers.getContractFactory("InterestRateGovernance");
-    interestGovernance = await InterestGov.deploy();
+    const interestGovernance = await InterestGov.deploy(await interestManager.getAddress());
 
     // Deploy TransactionValidationGovernance
     const TxGov = await ethers.getContractFactory("TransactionValidationGovernance");
@@ -47,12 +47,23 @@ describe("TokenizedDeposit", function () {
     const TIMESTAMP_UPDATER_ROLE = await interestManager.TIMESTAMP_UPDATER_ROLE();
     await interestManager.grantRole(TIMESTAMP_UPDATER_ROLE, await token.getAddress());
 
+    const RATE_UPDATER_ROLE = await interestManager.RATE_UPDATER_ROLE();
+    await interestManager.grantRole(RATE_UPDATER_ROLE, await interestGovernance.getAddress());
+
     const GOV_PROXY_ROLE = await interestGovernance.GOVERNANCE_PROXY_ROLE();
     await interestGovernance.grantRole(GOV_PROXY_ROLE, await token.getAddress());
     await txGovernance.grantRole(GOV_PROXY_ROLE, await token.getAddress());
 
-    // Add a bank
+    const VALIDATOR_ROLE = await interestGovernance.VALIDATOR_ROLE();
+    await interestGovernance.grantRole(VALIDATOR_ROLE, admin.address);
+    await txGovernance.grantRole(VALIDATOR_ROLE, admin.address);
+
+    // Add a bank (also triggers _recalculateAdminShare → admin gets 10%)
     await token.addBank(bank.address, ethers.parseEther("1000000"), true);
+
+    // Admin needs BANK_ROLE to claim fee dividends
+    const BANK_ROLE = await token.BANK_ROLE();
+    await token.grantRole(BANK_ROLE, admin.address);
   });
 
   it("Should successfully add a bank validator", async function () {
@@ -90,29 +101,6 @@ describe("TokenizedDeposit", function () {
     expect(balance).to.be.closeTo(expectedTotal, ethers.parseEther("1"));
   });
 
-  it("Should handle staking and 1-month time lock properly", async function () {
-    await compliance.whitelistUser(user1.address);
-    await token.connect(bank).issueDeposit(user1.address, ethers.parseEther("50000"));
-
-    await token.connect(user1).stakeDeposit(ethers.parseEther("10000"));
-    
-    expect(await token.stakedBalances(user1.address)).to.equal(ethers.parseEther("10000"));
-    expect(await token.balanceOf(user1.address)).to.equal(ethers.parseEther("40000"));
-
-    // Attempt early withdrawal
-    await expect(
-      token.connect(user1).withdrawStake(ethers.parseEther("5000"))
-    ).to.be.revertedWith("1-month lock active");
-
-    // Fast forward 30 days
-    await time.increase(30 * 24 * 60 * 60);
-
-    await token.connect(user1).withdrawStake(ethers.parseEther("5000"));
-    
-    expect(await token.stakedBalances(user1.address)).to.equal(ethers.parseEther("5000"));
-    expect(await token.balanceOf(user1.address)).to.equal(ethers.parseEther("45000"));
-  });
-
   it("Should handle fee distribution and claiming correctly", async function () {
     await compliance.whitelistUser(bank.address);
     await compliance.whitelistUser(user1.address);
@@ -124,7 +112,9 @@ describe("TokenizedDeposit", function () {
     await token.connect(user1).swapTokens(user2.address, ethers.parseEther("5000"));
 
     // swapTokens tiered fee: 25 bps of 5,000 = 12.5 tokens
-    const fee = ethers.parseEther("12.5");
+    // Bank receives 90% of distributed fees (admin holds 10% of total shares)
+    const totalFee = ethers.parseEther("12.5");
+    const bankFeeExpected = totalFee * 9n / 10n;
     const receivedAmount = ethers.parseEther("4987.5"); // 5000 - 12.5
     
     expect(await token.balanceOf(user2.address)).to.equal(receivedAmount);
@@ -132,7 +122,7 @@ describe("TokenizedDeposit", function () {
     // Bank claims dividend fees
     await token.connect(bank).claimFees();
     
-    // Since Bank is the only validator, they receive effectively all protocol fee (allowing tiny rounding dust)
-    expect(await token.balanceOf(bank.address)).to.be.closeTo(fee, 10n);
+    // Bank receives ~90% of fees proportional to their share
+    expect(await token.balanceOf(bank.address)).to.be.closeTo(bankFeeExpected, 10n);
   });
 });

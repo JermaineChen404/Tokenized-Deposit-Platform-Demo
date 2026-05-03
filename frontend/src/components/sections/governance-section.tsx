@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   interestGovernanceABI, txGovernanceABI,
   INTEREST_GOVERNANCE_ADDRESS, TX_GOVERNANCE_ADDRESS,
+  interestManagerABI, INTEREST_MANAGER_ADDRESS,
 } from "@/constants/governance";
 import { wagmiConfig } from "@/providers/web3-provider";
 
@@ -63,6 +64,11 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
 
   const { data: proposalCounter } = useReadContract({
     address: govAddr, abi: interestGovernanceABI, functionName: "proposalCounter",
+  });
+
+  const { data: currentRate } = useReadContract({
+    address: INTEREST_MANAGER_ADDRESS, abi: interestManagerABI, functionName: "interestRate",
+    query: { enabled: isRate },
   });
 
   const execute = async (actionId: string, loading: string, success: string, write: () => Promise<`0x${string}`>) => {
@@ -173,7 +179,20 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Gavel className="h-5 w-5" />{isRate ? "Interest Rate Governance" : "Transaction Validation Governance"}</CardTitle>
-          <CardDescription>{isRate ? "Propose and vote on base interest rates." : "Propose and vote on transaction hash approvals."}</CardDescription>
+          <CardDescription>
+            {isRate ? (
+              <>
+                Propose and vote on base interest rates.
+                {currentRate !== undefined && (
+                  <span className="ml-1 inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                    Current: {Number(currentRate)} bps ({Number(currentRate) / 100}%)
+                  </span>
+                )}
+              </>
+            ) : (
+              "Propose and vote on transaction hash approvals."
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-6">

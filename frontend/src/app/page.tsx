@@ -1,7 +1,7 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Activity, CircleAlert, Landmark, PiggyBank, Wallet } from "lucide-react";
+import { Activity, CircleAlert, Landmark, Wallet } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { type Address, zeroAddress } from "viem";
@@ -66,15 +66,6 @@ export default function Home() {
     args: [accountAddress], query: { enabled: canRead },
   });
 
-  const {
-    data: stakedBalance,
-    isLoading: isStakedBalanceLoading,
-    refetch: refetchStakedBalance,
-  } = useReadContract({
-    address: tokenAddress, abi: tokenizedDepositABI, functionName: "stakedBalances",
-    args: [accountAddress], query: { enabled: canRead },
-  });
-
   const { data: isWhitelisted } = useReadContract({
     address: complianceAddress, abi: complianceABI, functionName: "isWhitelisted",
     args: [accountAddress], query: { enabled: canRead },
@@ -131,7 +122,7 @@ export default function Home() {
                 Tokenized Deposit Dashboard
               </h1>
               <p className="max-w-2xl text-sm text-slate-600 dark:text-slate-400 sm:text-base">
-                Full-featured demo: deposits, staking, governance, compliance, and cross-chain bridge operations.
+                Full-featured demo: deposits, governance, compliance, and cross-chain bridge operations.
               </p>
             </div>
             <div className="flex items-center justify-start md:justify-end">
@@ -176,17 +167,11 @@ export default function Home() {
         ) : null}
 
         {/* Stat cards */}
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="grid gap-4 sm:grid-cols-2">
           <Card>
             <CardHeader>
               <CardDescription className="flex items-center gap-2"><Wallet className="h-4 w-4" />Token Balance</CardDescription>
               <CardTitle className="text-2xl">{!mounted ? "0.0000 TDHK" : isTokenBalanceLoading && canRead ? "Loading..." : `${formatTokenAmount(tokenBalance as bigint)} TDHK`}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardDescription className="flex items-center gap-2"><PiggyBank className="h-4 w-4" />Staked Balance</CardDescription>
-              <CardTitle className="text-2xl">{!mounted ? "0.0000 TDHK" : isStakedBalanceLoading && canRead ? "Loading..." : `${formatTokenAmount(stakedBalance as bigint)} TDHK`}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
@@ -238,8 +223,8 @@ export default function Home() {
 
         {/* Active section */}
         {activeTab === "dashboard" && (
-          <DashboardSection tokenAddress={tokenAddress} tokenBalance={tokenBalance as bigint} stakedBalance={stakedBalance as bigint}
-            canWrite={canWrite} refetchToken={refetchTokenBalance} refetchStaked={refetchStakedBalance} />
+          <DashboardSection tokenAddress={tokenAddress} tokenBalance={tokenBalance as bigint}
+            canWrite={canWrite} refetchToken={refetchTokenBalance} />
         )}
         {activeTab === "banking" && (
           <BankingSection tokenAddress={tokenAddress} accountAddress={accountAddress} canWrite={canWrite} refetchToken={refetchTokenBalance} />
@@ -248,7 +233,7 @@ export default function Home() {
           <ComplianceSection complianceAddress={complianceAddress} accountAddress={accountAddress} canWrite={canWrite} />
         )}
         {activeTab === "admin" && (
-          <AdminSection tokenAddress={tokenAddress} interestManagerAddress={interestManagerAddress} canWrite={canWrite} isAdmin={isAdmin} refetchToken={refetchTokenBalance} />
+          <AdminSection tokenAddress={tokenAddress} canWrite={canWrite} isAdmin={isAdmin} refetchToken={refetchTokenBalance} />
         )}
         {activeTab === "governance" && (
           <GovernanceSection accountAddress={accountAddress} canWrite={canWrite} />

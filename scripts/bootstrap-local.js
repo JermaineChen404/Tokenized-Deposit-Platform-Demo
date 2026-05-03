@@ -102,7 +102,7 @@ async function main() {
   console.log("  1. Admin adds banks      → Administration tab → Add Bank");
   console.log("  2. Admin whitelists users → Compliance tab → Whitelist User");
   console.log("  3. Admin issues deposits  → Banking tab → Issue Deposit");
-  console.log("  4. Users stake & transfer → Dashboard tab");
+  console.log("  4. Users transfer tokens  → Dashboard tab");
 }
 
 main().catch((error) => {

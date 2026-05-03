@@ -62,10 +62,11 @@ export function BankingSection({ tokenAddress, accountAddress, canWrite, refetch
     args: [connectedOrDefault(enterUser)], query: { enabled: true },
   });
 
-  const { data: lastAccrual } = useReadContract({
+  const { data: lastAccrualRaw } = useReadContract({
     address: tokenAddress, abi: tokenizedDepositABI, functionName: "lastAccrualTimestamp",
     args: [connectedOrDefault(accrueUser)], query: { enabled: true },
   });
+  const lastAccrual = lastAccrualRaw as bigint | null | undefined;
 
   const execute = async (actionId: string, loading: string, success: string, write: () => Promise<`0x${string}`>) => {
     if (!canWrite) { toast.error("Connect wallet and switch to Hardhat Localhost (31337)."); return; }
@@ -166,7 +167,7 @@ export function BankingSection({ tokenAddress, accountAddress, canWrite, refetch
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2"><Label>User Address</Label><Input placeholder="Leave empty for self" value={accrueUser} onChange={(e) => setAccrueUser(e.target.value)} /></div>
-            {lastAccrual !== undefined && lastAccrual > 0n && (
+            {lastAccrual != null && lastAccrual > 0n && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-900">
                 Last accrual: <strong>{new Date(Number(lastAccrual) * 1000).toLocaleString()}</strong>
               </div>

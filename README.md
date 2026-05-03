@@ -64,7 +64,6 @@ The `TokenizedDeposit` contract (TDHK token) implements:
 - **Bank onboarding** with validator shares
 - **Deposit issuance / redemption** with KYC whitelist gating
 - **Interest accrual** with tiered fee margins
-- **30-day staking** with lock-up
 - **Pull-payment dividend system** for fee distribution
 - **Quarterly share reevaluation** based on fee generation
 - **Compliance**, **InterestManager**, **CrossChainBridge**, **Governance** modules

@@ -48,7 +48,7 @@ The Admin must use the frontend to **add banks**, **whitelist users**, and **iss
    - Currency Symbol: `ETH`
 5. Select the account you want to use
 
-You will see three stat cards appear with your balances (initially all zero) and connection status.
+You will see two stat cards appear with your balance and connection status.
 
 ### The Navigation Tabs
 
@@ -56,7 +56,7 @@ After connecting, you will see a row of tabs below the Account Snapshot:
 
 | Tab | Who Uses It | Purpose |
 |---|---|---|
-| **Dashboard** | Everyone | View balances, stake tokens, transfer tokens |
+| **Dashboard** | Everyone | View balances, transfer tokens |
 | **Banking** | Admin, Banks | Issue deposits, redeem deposits, accrue interest, claim fees |
 | **Compliance** | Admin only | Manage KYC whitelist, check KYC status |
 | **Administration** | Admin only | Add banks, update interest rates, reevaluate shares |
@@ -86,7 +86,6 @@ Appears if your address is not in the KYC whitelist. You need an Administrator t
 **Stat Cards**
 Three cards showing:
 - **Token Balance** — how many TDHK tokens you hold
-- **Staked Balance** — how many TDHK tokens you have locked in staking
 - **Session Status** — whether your wallet is connected
 
 **Account Snapshot**
@@ -96,7 +95,7 @@ A table showing your wallet address, current network, and the addresses of the d
 
 1. Navigate to the appropriate tab
 2. Fill in the required fields (addresses, amounts, etc.)
-3. Click the action button (e.g., "Stake Deposit", "Issue Deposit")
+3. Click the action button (e.g., "Transfer Tokens", "Issue Deposit")
 4. MetaMask will prompt you to confirm the transaction — review the gas fee and click **Confirm**
 5. Wait a few seconds for the transaction to be mined
 6. A green toast notification confirms success, or a red one explains the error
@@ -157,14 +156,14 @@ Give each new user their 200 TDHK welcome incentive.
 
 #### Step 4: Issue Deposits
 
-Mint TDHK tokens to users so they have a balance to stake and transfer.
+Mint TDHK tokens to users so they have a balance to transfer.
 
 1. Click the **Banking** tab
 2. Under "Issue Deposit", enter a user's address and an amount (e.g., `1000`)
 3. Click **Issue Deposit**
 4. Repeat for each user
 
-After completing these steps, the platform is fully operational. Banks can earn fees, users can stake and transfer, and governance proposals can be created.
+After completing these steps, the platform is fully operational. Banks can earn fees, users can transfer tokens, and governance proposals can be created.
 
 ---
 
@@ -172,7 +171,7 @@ After completing these steps, the platform is fully operational. Banks can earn 
 
 #### Whitelisting a New User
 
-Before any user can stake, transfer, or receive tokens, they must be added to the KYC whitelist.
+Before any user can transfer or receive tokens, they must be added to the KYC whitelist.
 
 1. Obtain the user's wallet address (a 42‑character hex string starting with `0x`)
 2. Click the **Compliance** tab
@@ -477,7 +476,7 @@ Here is a typical day as a Bank on the platform:
 > **Prerequisite:** An Administrator must whitelist you (KYC) and issue you a TDHK deposit before you can use these features.  
 > **Your Balance:** 0 TDHK initially — you receive tokens when an admin issues a deposit or enters you into the system
 
-As a Retail User, you hold TDHK tokens, stake them to earn protocol benefits, and transfer tokens to other users. All actions are on the **Dashboard** tab.
+As a Retail User, you hold TDHK tokens and transfer them to other users. All actions are on the **Dashboard** tab.
 
 ---
 
@@ -485,37 +484,10 @@ As a Retail User, you hold TDHK tokens, stake them to earn protocol benefits, an
 
 #### Viewing Your Balances
 
-After connecting your wallet, the three stat cards show:
+After connecting your wallet, the stat cards show:
 
 - **Token Balance** — your freely available TDHK
-- **Staked Balance** — your locked TDHK (currently earning you nothing, but required for certain platform features)
 - **Session Status** — confirms you are connected
-
-#### Staking Tokens
-
-Staking locks your TDHK for 30 days. This is a core platform interaction.
-
-1. On the **Dashboard** tab, find the "Staking Interface" card
-2. Enter the amount you want to stake (e.g., `100`)
-3. Click **Stake Deposit**
-4. Confirm in MetaMask
-5. Your Token Balance goes down and your Staked Balance goes up
-
-**Important notes about staking:**
-- The minimum stake is any amount greater than 0
-- Once staked, your tokens are **locked for 30 days**
-- If you already have staked tokens, you cannot stake more until the existing lock expires
-- You cannot unstake any tokens until the 30‑day lock period ends
-
-#### Withdrawing Staked Tokens
-
-After your 30‑day lock expires:
-
-1. On the **Dashboard** tab, under "Withdraw Staked Amount"
-2. Enter the amount you want to unstake (must be ≤ your staked balance)
-3. Click **Withdraw Stake**
-4. Confirm in MetaMask
-5. Your Staked Balance goes down and Token Balance goes up
 
 #### Transferring Tokens to Another User
 
@@ -548,10 +520,7 @@ To transfer:
 |---|---|---|
 | "User not KYC whitelisted" | Your address is not in the KYC system | Ask an Admin to whitelist you (via the Compliance tab) |
 | "Recipient not KYC whitelisted" | The person you're sending to is not whitelisted | Ask an Admin to whitelist them |
-| "Stake amount exceeds your token balance" | You don't have enough TDHK | Enter a smaller amount |
 | "Transfer amount exceeds your token balance" | You don't have enough TDHK | Enter a smaller amount |
-| "Existing stake locked" | You already have staked tokens and can't add more yet | Wait 30 days or use a different wallet |
-| "1‑month lock active" | Your staked tokens are still locked | Wait for the 30‑day period to expire |
 | "AccessControlUnauthorizedAccount" | You tried to do something that requires a Bank or Admin role | You can only use the Dashboard tab as a user |
 
 ---
@@ -559,11 +528,9 @@ To transfer:
 ### Typical User Workflow
 
 1. Connect your wallet → verify you are KYC‑whitelisted (if not, ask an Admin)
-2. Check your balances on the Dashboard
-3. **Stake** some TDHK to lock them for 30 days
-4. **Transfer** some TDHK to another user (e.g., Bob or Alice)
-5. After 30 days, **unstake** your tokens back
-6. Let your Bank accrue interest on your behalf
+2. Check your balance on the Dashboard
+3. **Transfer** some TDHK to another user
+4. Let your Bank accrue interest on your behalf
 
 ---
 
@@ -573,7 +540,6 @@ To transfer:
 |---|---|
 | **TDHK** | The platform's native token (TokenizedDeposit Hong Kong Dollar) |
 | **KYC** | Know Your Customer — all users must be whitelisted to interact |
-| **Staking** | Locking your TDHK tokens for 30 days as a commitment to the platform |
 | **Basis Point (bps)** | 1/100th of a percent. 500 bps = 5% |
 | **BANK_ROLE** | Permission to issue/redeem deposits, accrue interest, and claim fees |
 | **COMPLIANCE_ROLE** | Permission to whitelist or remove users from KYC |

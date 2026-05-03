@@ -31,14 +31,22 @@ async function openBrowser(url) {
       : platform() === "darwin"
         ? ["open", url]
         : ["xdg-open", url];
-  await runOrThrow(cmdArgs[0], cmdArgs.slice(1), { stdio: "ignore", shell: isWin ? "cmd.exe" : true });
+  runSequential(cmdArgs[0], cmdArgs.slice(1), { stdio: "ignore", shell: isWin ? "cmd.exe" : true });
+}
+
+function runSequential(command, args, options = {}) {
+  const commandLine = `${command} ${args.join(" ")}`;
+  execSync(commandLine, {
+    stdio: "inherit",
+    shell: isWin ? "cmd.exe" : true,
+    ...options,
+  });
 }
 
 function runOrThrow(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: "inherit",
-      shell: isWin ? "cmd.exe" : true,
       ...options,
     });
     child.on("error", reject);
@@ -106,9 +114,9 @@ async function main() {
   await waitForHttp("http://127.0.0.1:8545/");
 
   console.log(">>> Running setup:local (deploy + ABI sync + bootstrap)...");
-  await runOrThrow(npxCmd, ["hardhat", "run", "scripts/deploy.js", "--network", "localhost"]);
-  await runOrThrow("node", ["extract_abi.js"]);
-  await runOrThrow(npxCmd, ["hardhat", "run", "scripts/bootstrap-local.js", "--network", "localhost"]);
+  runSequential(npxCmd, ["hardhat", "run", "scripts/deploy.js", "--network", "localhost"]);
+  runSequential("node", ["extract_abi.js"]);
+  runSequential(npxCmd, ["hardhat", "run", "scripts/bootstrap-local.js", "--network", "localhost"]);
 
   console.log(">>> Starting frontend dev server...");
   const frontend = spawnLongRunning(npmCmd, ["run", "dev"], { cwd: "frontend" });

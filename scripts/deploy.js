@@ -32,7 +32,7 @@ async function main() {
 
   // Deploy InterestRateGovernance
   const InterestGov = await ethers.getContractFactory("InterestRateGovernance");
-  const interestGovernance = await InterestGov.deploy();
+  const interestGovernance = await InterestGov.deploy(await interestManager.getAddress());
   await interestGovernance.waitForDeployment();
   console.log("InterestRateGovernance deployed to:", await interestGovernance.getAddress());
 
@@ -63,6 +63,15 @@ async function main() {
   const GOV_PROXY_ROLE = await interestGovernance.GOVERNANCE_PROXY_ROLE();
   await interestGovernance.grantRole(GOV_PROXY_ROLE, tokenAddress);
   await txGovernance.grantRole(GOV_PROXY_ROLE, tokenAddress);
+
+  const RATE_UPDATER_ROLE = await interestManager.RATE_UPDATER_ROLE();
+  await interestManager.grantRole(RATE_UPDATER_ROLE, await interestGovernance.getAddress());
+
+  const VALIDATOR_ROLE = await interestGovernance.VALIDATOR_ROLE();
+  await interestGovernance.grantRole(VALIDATOR_ROLE, deployer.address);
+  await txGovernance.grantRole(VALIDATOR_ROLE, deployer.address);
+
+  console.log("Deployer granted VALIDATOR_ROLE on both governance contracts.");
 
   const deploymentData = {
     tokenizedDeposit: tokenAddress,

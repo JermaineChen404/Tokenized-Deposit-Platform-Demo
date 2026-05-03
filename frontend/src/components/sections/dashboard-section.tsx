@@ -6,7 +6,7 @@ import { isAddress, parseEther } from "viem";
 import { toast } from "sonner";
 import { useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
-import { ArrowLeftRight, PiggyBank } from "lucide-react";
+import { ArrowLeftRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,10 +17,8 @@ import { wagmiConfig } from "@/providers/web3-provider";
 type Props = {
   tokenAddress: Address;
   tokenBalance: bigint | undefined;
-  stakedBalance: bigint | undefined;
   canWrite: boolean;
   refetchToken: () => Promise<unknown>;
-  refetchStaked: () => Promise<unknown>;
 };
 
 function parseTokenInput(rawValue: string, fieldName: string) {
@@ -51,10 +49,8 @@ function getErrorMessage(error: unknown) {
   return "Transaction failed.";
 }
 
-export function DashboardSection({ tokenAddress, tokenBalance, stakedBalance, canWrite, refetchToken, refetchStaked }: Props) {
+export function DashboardSection({ tokenAddress, tokenBalance, canWrite, refetchToken }: Props) {
   const { writeContractAsync } = useWriteContract();
-  const [stakeAmount, setStakeAmount] = useState("");
-  const [unstakeAmount, setUnstakeAmount] = useState("");
   const [transferRecipient, setTransferRecipient] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
@@ -82,32 +78,10 @@ export function DashboardSection({ tokenAddress, tokenBalance, stakedBalance, ca
         return hash;
       })();
       await toast.promise(tx, { loading: loadingMessage, success: successMessage, error: (e) => getErrorMessage(e) });
-      await Promise.all([refetchToken(), refetchStaked()]);
+      await refetchToken();
     } finally {
       setActiveAction(null);
     }
-  };
-
-  const handleStake = async () => {
-    const amount = parseTokenInput(stakeAmount, "Stake amount");
-    if (amount === null) return;
-    if (amount > (tokenBalance ?? 0n)) { toast.error("Stake amount exceeds your token balance."); return; }
-    await execute({
-      actionId: "stake", loadingMessage: "Staking...", successMessage: "Stake confirmed.",
-      write: () => writeContractAsync({ address: tokenAddress, abi: tokenizedDepositABI, functionName: "stakeDeposit", args: [amount] }),
-    });
-    setStakeAmount("");
-  };
-
-  const handleUnstake = async () => {
-    const amount = parseTokenInput(unstakeAmount, "Unstake amount");
-    if (amount === null) return;
-    if (amount > (stakedBalance ?? 0n)) { toast.error("Unstake amount exceeds your staked balance."); return; }
-    await execute({
-      actionId: "unstake", loadingMessage: "Unstaking...", successMessage: "Unstake confirmed.",
-      write: () => writeContractAsync({ address: tokenAddress, abi: tokenizedDepositABI, functionName: "withdrawStake", args: [amount] }),
-    });
-    setUnstakeAmount("");
   };
 
   const handleTransfer = async () => {
@@ -124,49 +98,24 @@ export function DashboardSection({ tokenAddress, tokenBalance, stakedBalance, ca
   };
 
   return (
-    <section className="grid gap-6 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Staking Interface</CardTitle>
-          <CardDescription>Lock TDHK for 30 days with on-chain stake and withdraw.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="stake-amount">Stake Amount (TDHK)</Label>
-            <Input id="stake-amount" inputMode="decimal" placeholder="e.g. 100.5" value={stakeAmount} onChange={(e) => setStakeAmount(e.target.value)} />
-          </div>
-          <Button className="w-full" onClick={handleStake} loading={activeAction === "stake"} disabled={!canWrite}>
-            <PiggyBank className="h-4 w-4" /> Stake Deposit
-          </Button>
-          <div className="space-y-2">
-            <Label htmlFor="unstake-amount">Withdraw Staked Amount (TDHK)</Label>
-            <Input id="unstake-amount" inputMode="decimal" placeholder="e.g. 25" value={unstakeAmount} onChange={(e) => setUnstakeAmount(e.target.value)} />
-          </div>
-          <Button className="w-full" variant="outline" onClick={handleUnstake} loading={activeAction === "unstake"} disabled={!canWrite}>
-            Withdraw Stake
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Transfer Interface</CardTitle>
-          <CardDescription>Tiered-fee transfer via <span className="font-mono">swapTokens()</span> (0.15%–0.25%).</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="recipient-address">Recipient Address</Label>
-            <Input id="recipient-address" placeholder="0x..." value={transferRecipient} onChange={(e) => setTransferRecipient(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="transfer-amount">Amount (TDHK)</Label>
-            <Input id="transfer-amount" inputMode="decimal" placeholder="e.g. 10" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} />
-          </div>
-          <Button className="w-full" onClick={handleTransfer} loading={activeAction === "transfer"} disabled={!canWrite}>
-            <ArrowLeftRight className="h-4 w-4" /> Transfer Tokens
-          </Button>
-        </CardContent>
-      </Card>
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle>Transfer Interface</CardTitle>
+        <CardDescription>Tiered-fee transfer via <span className="font-mono">swapTokens()</span> (0.15%–0.25%).</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="recipient-address">Recipient Address</Label>
+          <Input id="recipient-address" placeholder="0x..." value={transferRecipient} onChange={(e) => setTransferRecipient(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="transfer-amount">Amount (TDHK)</Label>
+          <Input id="transfer-amount" inputMode="decimal" placeholder="e.g. 10" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} />
+        </div>
+        <Button className="w-full" onClick={handleTransfer} loading={activeAction === "transfer"} disabled={!canWrite}>
+          <ArrowLeftRight className="h-4 w-4" /> Transfer Tokens
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

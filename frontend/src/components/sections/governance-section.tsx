@@ -6,7 +6,7 @@ import { formatEther, isAddress } from "viem";
 import { toast } from "sonner";
 import { useReadContract, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
-import { Gavel, Vote, UserPlus, Settings, FileText } from "lucide-react";
+import { Gavel, Vote, Settings, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,8 +53,6 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
   const [voteChoice, setVoteChoice] = useState("for");
   const [proxyValidator, setProxyValidator] = useState("");
   const [executeId, setExecuteId] = useState("");
-  const [regAddr, setRegAddr] = useState("");
-  const [regShare, setRegShare] = useState("");
   const [shareAddr, setShareAddr] = useState("");
   const [shareVal, setShareVal] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
@@ -139,16 +137,6 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
     await execute("execute", "Executing...", "Proposal executed.",
       () => writeContractAsync({ address: govAddr, abi: interestGovernanceABI, functionName: "executeProposal", args: [BigInt(id)] }));
     setExecuteId("");
-  };
-
-  const handleRegister = async () => {
-    const a = regAddr.trim();
-    if (!isAddress(a)) { toast.error("Valid address required."); return; }
-    const s = regShare.trim();
-    if (!s || !/^\d+$/.test(s)) { toast.error("Valid integer share required."); return; }
-    await execute("register", "Registering...", "Validator registered.",
-      () => writeContractAsync({ address: govAddr, abi: interestGovernanceABI, functionName: "registerValidator", args: [a as Address, BigInt(s)] }));
-    setRegAddr(""); setRegShare("");
   };
 
   const handleSetShare = async () => {
@@ -274,14 +262,6 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
                 <div className="flex gap-3 items-end">
                   <div className="flex-1 space-y-2"><Label>Proposal ID</Label><Input placeholder="1" value={executeId} onChange={(e) => setExecuteId(e.target.value)} /></div>
                   <Button onClick={handleExecute} loading={activeAction === "execute"} disabled={!canWrite}>Execute</Button>
-                </div>
-              </div>
-              <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-                <Label className="mb-2 block font-semibold"><UserPlus className="inline h-4 w-4 mr-1" />Register Validator</Label>
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div className="flex-1 min-w-[120px] space-y-2"><Label>Address</Label><Input placeholder="0x..." value={regAddr} onChange={(e) => setRegAddr(e.target.value)} /></div>
-                  <div className="flex-1 min-w-[120px] space-y-2"><Label>Share</Label><Input placeholder="1e18" value={regShare} onChange={(e) => setRegShare(e.target.value)} /></div>
-                  <Button onClick={handleRegister} loading={activeAction === "register"} disabled={!canWrite}>Register</Button>
                 </div>
               </div>
               <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">

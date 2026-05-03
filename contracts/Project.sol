@@ -102,12 +102,13 @@ contract InterestRateGovernance is BaseGovernance {
         interestManager = InterestManager(_interestManager);
     }
     uint256 public constant MIN_PROPOSAL_SHARES = 1e18;
+    uint256 public constant PROPOSAL_COOLDOWN = 30 seconds;
     event ProposalCreated(uint256 id, uint256 proposedRate);
     event ProposalExecuted(uint256 id, uint256 newRate);
     event ValidatorProposalCreated(uint256 indexed id, address indexed proposer, uint256 proposedRate);
 
     function createProposalByProxy(address validator, uint256 proposedRate) external onlyRole(GOVERNANCE_PROXY_ROLE) {
-        require(block.timestamp >= lastVoteTimestamp + 30 days, "Voting too frequent");
+        require(block.timestamp >= lastVoteTimestamp + PROPOSAL_COOLDOWN, "Voting too frequent");
         proposalCounter++;
         proposals[proposalCounter] = Proposal(proposalCounter, 0, 0, 0, false, block.timestamp);
         rateProposals[proposalCounter] = proposedRate;
@@ -117,7 +118,7 @@ contract InterestRateGovernance is BaseGovernance {
 
     function createProposal(uint256 proposedRate) external onlyRole(VALIDATOR_ROLE) {
         require(validatorShares[msg.sender] >= MIN_PROPOSAL_SHARES, "Insufficient share weight");
-        require(block.timestamp >= lastVoteTimestamp + 30 days, "Voting too frequent");
+        require(block.timestamp >= lastVoteTimestamp + PROPOSAL_COOLDOWN, "Voting too frequent");
         proposalCounter++;
         proposals[proposalCounter] = Proposal({
             id: proposalCounter,
@@ -144,12 +145,13 @@ contract InterestRateGovernance is BaseGovernance {
 contract TransactionValidationGovernance is BaseGovernance {
     mapping(uint256 => string) public txProposals;
     uint256 public constant MIN_PROPOSAL_SHARES = 1e18;
+    uint256 public constant PROPOSAL_COOLDOWN = 30 seconds;
     event ProposalCreated(uint256 id, string txHash);
     event ProposalExecuted(uint256 id, string txHash);
     event ValidatorProposalCreated(uint256 indexed id, address indexed proposer, string txHash);
 
     function createProposalByProxy(address validator, string calldata txHash) external onlyRole(GOVERNANCE_PROXY_ROLE) {
-        require(block.timestamp >= lastVoteTimestamp + 30 days, "Voting too frequent");
+        require(block.timestamp >= lastVoteTimestamp + PROPOSAL_COOLDOWN, "Voting too frequent");
         proposalCounter++;
         proposals[proposalCounter] = Proposal(proposalCounter, 0, 0, 0, false, block.timestamp);
         txProposals[proposalCounter] = txHash;
@@ -159,7 +161,7 @@ contract TransactionValidationGovernance is BaseGovernance {
 
     function createProposal(string calldata txHash) external onlyRole(VALIDATOR_ROLE) {
         require(validatorShares[msg.sender] >= MIN_PROPOSAL_SHARES, "Insufficient share weight");
-        require(block.timestamp >= lastVoteTimestamp + 30 days, "Voting too frequent");
+        require(block.timestamp >= lastVoteTimestamp + PROPOSAL_COOLDOWN, "Voting too frequent");
         proposalCounter++;
         proposals[proposalCounter] = Proposal({
             id: proposalCounter,
@@ -278,6 +280,7 @@ contract TokenizedDeposit is ERC20, AccessControl {
     mapping(address => uint256) public claimableFees;
 
     mapping(address => uint256) public lastAccrualTimestamp; // H3: cooldown for manual compounding
+    uint256 public constant ACCRUAL_COOLDOWN = 30 seconds;
 
     struct BankInfo {
         uint256 entryTime;
@@ -490,7 +493,7 @@ contract TokenizedDeposit is ERC20, AccessControl {
         uint256 timeElapsed = block.timestamp - interestManager.lastAccrualTimestamp(user);
         if (timeElapsed == 0 || principal == 0) return;
 
-        require(block.timestamp >= lastAccrualTimestamp[user] + 1 days, "Accrual cooldown active");
+        require(block.timestamp >= lastAccrualTimestamp[user] + ACCRUAL_COOLDOWN, "Accrual cooldown active");
 
         uint256 baseRate = interestManager.interestRate();
         uint256 feeMarginBps; 

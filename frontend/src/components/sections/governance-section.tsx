@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Address } from "viem";
 import { formatEther, isAddress } from "viem";
 import { toast } from "sonner";
 import { useReadContract, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
-import { Gavel, Vote, FileText, Play } from "lucide-react";
+import { Gavel, Vote, FileText, Play, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +64,23 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
     address: INTEREST_MANAGER_ADDRESS, abi: interestManagerABI, functionName: "interestRate",
     query: { enabled: isRate },
   });
+
+  const { data: lastVoteTimestamp } = useReadContract({
+    address: govAddr, abi: interestGovernanceABI, functionName: "lastVoteTimestamp",
+  });
+
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    setNow(Math.floor(Date.now() / 1000));
+    const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const COOLDOWN_SEC = 30; // matches contract PROPOSAL_COOLDOWN
+  const cooldownRemaining = (lastVoteTimestamp != null && now > 0)
+    ? Number(lastVoteTimestamp) + COOLDOWN_SEC - now
+    : 0;
+  const cooldownActive = cooldownRemaining > 0;
 
   const execute = async (actionId: string, loading: string, success: string, write: () => Promise<`0x${string}`>) => {
     if (!canWrite) { toast.error("Connect wallet and switch to Hardhat Localhost (31337)."); return; }
@@ -175,15 +192,20 @@ export function GovernanceSection({ accountAddress, canWrite }: Props) {
             <div className="space-y-6">
               <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
                 <Label className="mb-2 block font-semibold"><FileText className="inline h-4 w-4 mr-1" />Create Proposal</Label>
+                {cooldownActive && (
+                  <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                    <Clock className="h-4 w-4 shrink-0" /> Cooldown active — {cooldownRemaining}s remaining before next proposal
+                  </div>
+                )}
                 {isRate ? (
                   <div className="flex gap-3 items-end">
                     <div className="flex-1 space-y-2"><Label>Rate (bps)</Label><Input placeholder="500" value={propRate} onChange={(e) => setPropRate(e.target.value)} /></div>
-                    <Button onClick={handleCreate} loading={activeAction === "create"} disabled={!canWrite}>Create</Button>
+                    <Button onClick={handleCreate} loading={activeAction === "create"} disabled={!canWrite || cooldownActive}>Create</Button>
                   </div>
                 ) : (
                   <div className="flex gap-3 items-end">
                     <div className="flex-1 space-y-2"><Label>TX Hash</Label><Input placeholder="0x..." value={propTxHash} onChange={(e) => setPropTxHash(e.target.value)} /></div>
-                    <Button onClick={handleCreate} loading={activeAction === "create"} disabled={!canWrite}>Create</Button>
+                    <Button onClick={handleCreate} loading={activeAction === "create"} disabled={!canWrite || cooldownActive}>Create</Button>
                   </div>
                 )}
               </div>

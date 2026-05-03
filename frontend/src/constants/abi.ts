@@ -468,6 +468,19 @@ export const tokenizedDepositABI = [
   },
   {
     "inputs": [],
+    "name": "ACCRUAL_COOLDOWN",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "BANK_ROLE",
     "outputs": [
       {

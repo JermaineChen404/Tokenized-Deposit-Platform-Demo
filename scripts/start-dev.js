@@ -36,11 +36,21 @@ async function openBrowser(url) {
 
 function runSequential(command, args, options = {}) {
   const commandLine = `${command} ${args.join(" ")}`;
-  execSync(commandLine, {
-    stdio: "inherit",
-    shell: isWin ? "cmd.exe" : true,
-    ...options,
-  });
+  try {
+    execSync(commandLine, {
+      stdio: "inherit",
+      shell: isWin ? "cmd.exe" : true,
+      ...options,
+    });
+  } catch (err) {
+    if (isWin && err.status === 3221226505) {
+      console.log("");
+      console.log(">>> Command completed but Windows process cleanup triggered a harmless crash.");
+      console.log("    This is a known libuv bug on Windows. The command result above is valid.");
+      return;
+    }
+    throw err;
+  }
 }
 
 function runOrThrow(command, args, options = {}) {

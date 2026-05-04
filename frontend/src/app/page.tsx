@@ -9,7 +9,6 @@ import { formatEther } from "viem";
 import { useAccount, useChainId, useReadContract, useSwitchChain } from "wagmi";
 import { hardhat } from "wagmi/chains";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, type TabId } from "@/components/tabs";
 import { DashboardSection } from "@/components/sections/dashboard-section";
 import { BankingSection } from "@/components/sections/banking-section";
@@ -194,41 +193,17 @@ export default function Home() {
           </Card>
         </section>
 
-        {/* Account Snapshot */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Account Snapshot</CardTitle>
-            <CardDescription>Live wallet and contract context on your selected network.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell>Wallet</TableCell>
-                  <TableCell className="font-mono text-xs sm:text-sm">{!mounted ? "Not connected" : walletLabel}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Network</TableCell>
-                  <TableCell>{!mounted ? "Unknown" : onSupportedChain ? "Hardhat Localhost (31337)" : `Chain ID ${chainId ?? "Unknown"}`}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>TokenizedDeposit</TableCell>
-                  <TableCell className="font-mono text-xs sm:text-sm">{TOKENIZED_DEPOSIT_ADDRESS}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Compliance</TableCell>
-                  <TableCell className="font-mono text-xs sm:text-sm">{COMPLIANCE_ADDRESS}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {mounted && isConnected && (
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+            <span>Wallet: <span className="font-mono text-slate-900 dark:text-slate-200">{walletLabel}</span></span>
+            <span className="hidden sm:inline text-slate-300 dark:text-slate-600">|</span>
+            <span>{onSupportedChain ? "Hardhat (31337)" : `Chain ${chainId ?? "?"}`}</span>
+            <span className="hidden sm:inline text-slate-300 dark:text-slate-600">|</span>
+            <span className="hidden md:inline">TD: <span className="font-mono">{TOKENIZED_DEPOSIT_ADDRESS.slice(0, 6)}...{TOKENIZED_DEPOSIT_ADDRESS.slice(-4)}</span></span>
+            <span className="hidden md:inline text-slate-300 dark:text-slate-600">|</span>
+            <span className="hidden md:inline">Comp: <span className="font-mono">{COMPLIANCE_ADDRESS.slice(0, 6)}...{COMPLIANCE_ADDRESS.slice(-4)}</span></span>
+          </div>
+        )}
 
         {/* Tab navigation */}
         <Tabs active={activeTab} onChange={setActiveTab} isAdmin={isAdmin} isCompliance={isCompliance} isValidator={isValidator} />

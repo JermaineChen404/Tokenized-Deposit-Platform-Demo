@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Address } from "viem";
 import { formatEther, isAddress, parseEther, zeroAddress } from "viem";
 import { toast } from "sonner";
 import { useReadContract, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
-import { Coins, TrendingUp, Wallet, BadgeCheck, Gift, Clock } from "lucide-react";
+import { Coins, TrendingUp, Wallet, BadgeCheck, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -67,19 +67,6 @@ export function BankingSection({ tokenAddress, accountAddress, canWrite, refetch
     args: [connectedOrDefault(accrueUser)], query: { enabled: true },
   });
   const lastAccrual = lastAccrualRaw as bigint | null | undefined;
-
-  const [now, setNow] = useState(0);
-  useEffect(() => {
-    setNow(Math.floor(Date.now() / 1000));
-    const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const COOLDOWN_SEC = 30; // matches contract ACCRUAL_COOLDOWN
-  const accrueCooldownRemaining = (lastAccrual != null && lastAccrual > 0n && now > 0)
-    ? Number(lastAccrual) + COOLDOWN_SEC - now
-    : 0;
-  const accrueOnCooldown = accrueCooldownRemaining > 0;
 
   const execute = async (actionId: string, loading: string, success: string, write: () => Promise<`0x${string}`>) => {
     if (!canWrite) { toast.error("Connect wallet and switch to Hardhat Localhost (31337)."); return; }
@@ -176,21 +163,16 @@ export function BankingSection({ tokenAddress, accountAddress, canWrite, refetch
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" />Accrue Interest</CardTitle>
-            <CardDescription>Compound interest for a user (BANK_ROLE, 30s cooldown for demo).</CardDescription>
+            <CardDescription>Compound interest for a user (BANK_ROLE, 1-day cooldown).</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2"><Label>User Address</Label><Input placeholder="Leave empty for self" value={accrueUser} onChange={(e) => setAccrueUser(e.target.value)} /></div>
-            {accrueOnCooldown && (
-              <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                <Clock className="h-4 w-4 shrink-0" /> Cooldown active — {accrueCooldownRemaining}s remaining
-              </div>
-            )}
             {lastAccrual != null && lastAccrual > 0n && (
               <div className="text-sm text-slate-500">
                 Last accrual: <strong>{new Date(Number(lastAccrual) * 1000).toLocaleString()}</strong>
               </div>
             )}
-            <Button className="w-full" onClick={handleAccrue} loading={activeAction === "accrue"} disabled={!canWrite || accrueOnCooldown}>Accrue Interest</Button>
+            <Button className="w-full" onClick={handleAccrue} loading={activeAction === "accrue"} disabled={!canWrite}>Accrue Interest</Button>
           </CardContent>
         </Card>
       </div>
